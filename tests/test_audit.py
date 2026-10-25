@@ -472,3 +472,120 @@ def test_malformed_function_call_arguments_need_inspection(
     assert "ESCALATION BAD" in stdout
     assert "function_call arguments are not JSON" in stdout
     assert "needs inspection" in stdout
+
+
+@pytest.mark.parametrize("pattern", ["`", '"'], ids=["backtick", "quote"])
+def test_regex_literal_does_not_hide_real_escalation(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    pattern: str,
+) -> None:
+    """Regex contents cannot be mistaken for string or template delimiters."""
+    regex = f"/{pattern}/g"
+    source = (
+        f'const before = generated.replace({regex}, "");\n'
+        + 'await tools.exec_command({cmd:"git push origin main",workdir:"'
+        + str(isolated_env.repo)
+        + '",sandbox_permissions:"require_escalated"});\n'
+        + f'const after = generated.replace({regex}, "");'
+    )
+
+    code, stdout, _stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(tool_input(source)),
+    )
+
+    assert code == 1
+    assert "ESCALATION BAD" in stdout
+    assert "git push origin main" in stdout
+
+
+def test_division_next_to_real_escalation_is_not_a_regex(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """A slash after an identifier retains division semantics."""
+    source = (
+        "const ratio = numerator / denominator;\n"
+        + 'await tools.exec_command({cmd:"git push origin main",workdir:"'
+        + str(isolated_env.repo)
+        + '",sandbox_permissions:"require_escalated"});'
+    )
+
+    code, stdout, _stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(tool_input(source)),
+    )
+
+    assert code == 1
+    assert "git push origin main" in stdout
+
+
+def test_non_escalated_loop_with_interpolation_is_out_of_scope(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """Ordinary computed commands do not require escalation inspection."""
+    source = (
+        "for (const generatedCommand of commands) {\n"
+        "  const label = `running ${generatedCommand}`;\n"
+        + '  await tools.exec_command({cmd:generatedCommand,workdir:"'
+        + str(isolated_env.repo)
+        + '"});\n}'
+    )
+
+    code, stdout, stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(tool_input(source)),
+    )
+
+    assert code == 0, stderr
+    assert "ESCALATION" not in stdout
+
+
+def test_escalated_template_command_with_interpolation_needs_inspection(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """An escalated cmd must remain a plain string rather than a template."""
+    source = (
+        'await tools.exec_command({cmd:`git ${generatedAction}`,workdir:"'
+        + str(isolated_env.repo)
+        + '",sandbox_permissions:"require_escalated"});'
+    )
+
+    code, stdout, _stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(tool_input(source)),
+    )
+
+    assert code == 1
+    assert "ESCALATION BAD" in stdout
+    assert "needs inspection" in stdout
+
+
+def test_unrelated_interpolation_in_scoped_source_is_parsed(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """Executed interpolation away from the call does not make a literal escalation ambiguous."""
+    source = (
+        "const label = `generated ${name.toUpperCase()}`;\n"
+        + 'await tools.exec_command({cmd:"git add generated",workdir:"'
+        + str(isolated_env.repo)
+        + '",sandbox_permissions:"require_escalated"});'
+    )
+
+    code, stdout, stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(tool_input(source)),
+    )
+
+    assert code == 0, stderr
+    assert "ESCALATION ok" in stdout
+    assert "ESCALATION BAD" not in stdout
