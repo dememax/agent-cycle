@@ -25,14 +25,16 @@ in its maintainers' private notes. Run state stays in
 - text copied from the maintainers' private notes. Documents here are
   written for this repository.
 
-A push gate refuses tracked content that matches a local deny-list kept
-outside the repository; it runs before any push (first work package).
+A push gate refuses protected patterns in the content and metadata a push
+would publish. Its deny-list stays outside the repository; the gate runs before
+any push.
 
 ## Repository layout
 
 | Path | Purpose |
 |---|---|
 | `bin/` | The command-line tools |
+| `tools/` | The public-content gate and its tracked pre-push hook |
 | `tests/` | Generated-log tests and the isolated fake Codex CLI |
 | `schemas/` | Versioned final-message contracts |
 | `docs/` | Sphinx documentation in reStructuredText |
@@ -45,7 +47,7 @@ outside the repository; it runs before any push (first work package).
 
 Still planned by the first work package: `profiles/` (one file per project,
 with its repository, allowed escalations, validation commands and state
-directory) and `tools/check-public.sh` (the push gate).
+directory).
 
 ## File header comment
 

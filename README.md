@@ -25,11 +25,11 @@ repository itself.
   relays messages.
 - **Tests:** `python3.14 -m pytest` characterizes the tools' refusal paths
   with generated logs and a fake Codex CLI only.
-- **Done in the first work package:** the tests, and a fail-closed parser
-  for the audit's escalation detection.
-- **Next in it:** the push gate, the remaining lint findings, and project
-  profiles replacing the two environment variables (below). See
-  [AGENTS.md](AGENTS.md).
+- **Done in the first work package:** the tests, a fail-closed parser for the
+  audit's escalation detection, and the public-content push gate.
+- **Next in it:** make snapshots fail on Git errors, validate complete audit
+  results, resolve the remaining lint findings, and add project profiles that
+  replace the two environment variables (below). See [AGENTS.md](AGENTS.md).
 
 ## Documentation
 
@@ -67,10 +67,68 @@ practices.
 | `bin/github-snapshot.sh` | Snapshot the HEAD, refs and status of each repository under `~/github/*/` and `~/github/*/*/`, before and after a turn (best-effort: a failing `git` command is not detected yet) |
 | `bin/turn-usage.py` | Per-turn usage of both agents: tokens, context per call, rate-limit windows (best-effort: malformed lines are skipped) |
 | `bin/codexlog.py` | The strict log reader the tools share |
+| `tools/check-public.sh` | Fail closed on protected patterns in the content and metadata a push would publish |
+| `tools/pre-push` | Tracked Git hook that applies the public-content gate to proposed ref updates |
 | `schemas/*.json` | The implementer's and the reviewer's final-message contracts |
 
 Run state (the active-chat record, the turn directories, the evidence)
 lives outside the repository, in `~/.local/state/agent-cycle/<project>/`.
+
+## Public-content push gate
+
+`tools/check-public.sh RANGE...` scans one or more revision ranges. A single
+revision means every commit reachable from it. For every selected commit, the
+gate scans:
+
+- every range-specific blob reported by `git rev-list --objects`, as bytes,
+  including a blob added and removed within the range;
+- changed path names;
+- the complete commit message; and
+- the author and committer names and email addresses.
+
+`tools/check-public.sh --pre-push REMOTE` reads Git's pre-push records from
+standard input. It scans the objects added by an update, excludes that remote's
+tracking history for a new ref, and scans nothing for a deletion. When the
+local object is an annotated tag, its message and tagger name and email address
+are scanned too.
+
+The real deny-list is deliberately outside this public repository. Its default
+location is `~/.config/agent-cycle/deny-list`; `AGENT_CYCLE_DENY_LIST` can
+select another file. Blank lines and lines beginning with `#` are ignored.
+Every other line has the form `KIND:VALUE`:
+
+- `fixed-i` is a case-insensitive substring;
+- `word` is a case-sensitive whole word; and
+- `regex` is a Python regular expression and may use inline flags.
+
+In addition, the gate rejects literal absolute home-directory paths under
+`/home` or `/Users` (but not placeholders such as `/home/<user>`), email
+addresses other than Git's configured `user.email` and the two co-author
+addresses named in [AGENTS.md](AGENTS.md), and these account-identifier keys
+when they have a value on the same line: `creator_user_id`,
+`creator_account_id`, `account_id`, `accountUuid`, `organizationUuid`,
+`userID` and `user_id`.
+
+Install the tracked hook for this clone with one command (the push remains a
+person's action):
+
+```bash
+git config core.hooksPath tools
+```
+
+Exit status 0 means the complete requested scan was clean, 1 means it found a
+protected pattern, and 2 means it refused to scan. Refusals include a missing,
+unreadable or empty deny-list; an unknown kind, empty value or invalid regular
+expression; an invalid revision; a failed Git command; and malformed pre-push
+input. Findings identify the commit, item kind, rule and location without
+printing the matching text or deny-list value. There is no inline exception or
+suppression mechanism: fix a false positive in the text or in the private
+deny-list.
+
+This gate matches configured and built-in patterns. It cannot establish that
+a push contains no private information, cannot recognize a sensitive value
+that no rule describes, and is not a sandbox. Review and the rule that only a
+person pushes remain necessary.
 
 ## Selecting the project
 
