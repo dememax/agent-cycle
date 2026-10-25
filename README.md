@@ -20,9 +20,10 @@ serves is [check_rst](https://github.com/dememax/check_rst).
 
 **Initial import.** The tools are the ones in use today (stage "S0+": the
 driver queues every turn itself, nobody relays messages, and the human
-decides only what is theirs), imported as they were reviewed. They still name check_rst's paths. Moving those into a project
-profile, the tests and the push gate are the first work package; see
-[AGENTS.md](AGENTS.md).
+decides only what is theirs), imported as they were reviewed. The project
+they serve is selected by two environment variables, which default to
+check_rst's (below). Project profiles, the tests and the push gate are the
+first work package; see [AGENTS.md](AGENTS.md).
 
 ## Warnings
 
@@ -52,6 +53,20 @@ profile, the tests and the push gate are the first work package; see
 
 Run state (the active-chat record, the turn directories, the evidence)
 lives outside the repository, in `~/.local/state/agent-cycle/<project>/`.
+
+## Selecting the project
+
+Each project has its own Codex chat, opened in a VS Code window on that
+project's repository, and its own state directory. Two environment
+variables select the project; both default to check_rst's:
+
+| Variable | Default | Used for |
+|---|---|---|
+| `AGENT_CYCLE_REPO` | `~/github/check_rst` | the chat's expected working directory, and the only repository where commits may be escalated |
+| `AGENT_CYCLE_STATE` | `~/.local/state/agent-cycle/check_rst` | the active-chat record and the queue lock |
+
+Both must be absolute. The queue refuses an active-chat record that belongs
+to another repository. Project profiles replace these variables later.
 
 ## License
 

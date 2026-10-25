@@ -10,6 +10,7 @@ Holds an exclusive lock (queue.lock) from the checks until Codex has
 visibly started the new turn, so two drivers cannot both queue. Refuses
 (exit 1) unless all of these hold:
 - active-codex-thread.json exists; its log parses completely;
+- the record's cwd is the selected project's repository (codexlog.CWD);
 - the log's session_meta id, source, originator, cwd and timestamp equal
   the record's;
 - the log's initial composer message is exactly the recorded sentinel, in a
@@ -47,7 +48,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import codexlog
 
-STATE = Path(os.environ.get("S0_STATE_DIR", str(Path.home() / ".local/state/agent-cycle/check_rst")))
+# S0_STATE_DIR, the older name, still overrides the selected project's state directory.
+STATE = Path(os.environ["S0_STATE_DIR"]) if os.environ.get("S0_STATE_DIR") else codexlog.STATE_DIR
 ACTIVE = STATE / "active-codex-thread.json"
 LOCK = STATE / "queue.lock"
 PENDING = STATE / "pending.json"
@@ -85,6 +87,8 @@ def write_durably(path: Path, text: str) -> None:
 
 
 def check(active: dict, prompt_text: str | None) -> tuple[list[dict] | None, str | None]:
+    if active.get("cwd") != codexlog.CWD:
+        return None, f"active record's cwd {active.get('cwd')!r} is not the selected repository {codexlog.CWD!r}"
     log = Path(active["log_path"])
     try:
         recs = codexlog.records(log)

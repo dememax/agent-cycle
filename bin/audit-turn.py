@@ -8,7 +8,8 @@ Usage: audit-turn.py THREAD_LOG START_LINE SCHEMA OUT_DIR
 
 Reads the rollout log from START_LINE, and:
 - lists every escalated command (sandbox_permissions: require_escalated) and
-  flags any that is not `git add` / `git commit` inside ~/github/check_rst;
+  flags any that is not `git add` / `git commit` inside the selected
+  project's repository (codexlog.CWD);
 - saves the turn's final assistant message to OUT_DIR/final-reply.md and,
   if it parses as one JSON object, to OUT_DIR/result.json, then checks the
   schema's required keys, extra keys and enum values.
@@ -21,8 +22,11 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import codexlog
+
 log, start, schema_path, out = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
-REPO = str(Path.home() / "github" / "check_rst")
+REPO = codexlog.CWD
 ALLOW = re.compile(r"^git(\s+-C\s+" + re.escape(REPO) + r"/?)?\s+(add|commit)\b")
 # A per-turn extension, decided by the user for one turn only, passed as a
 # regular expression in AUDIT_EXTRA_ALLOW (e.g. the prescribed release tag).

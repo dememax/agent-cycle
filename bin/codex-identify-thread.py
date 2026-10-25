@@ -10,7 +10,7 @@ SINCE_ISO must carry a time-zone offset (for example 2026-10-25T11:40:00+01:00).
 
 A candidate is a rollout file under ~/.codex/sessions that parses
 completely (codexlog.records), whose session_meta says source "vscode",
-originator "codex_vscode", cwd ~/github/check_rst, created after
+originator "codex_vscode", cwd the project's repository (codexlog.REPO_DIR), created after
 SINCE_ISO, and whose INITIAL composer message (the first "user.text" item)
 equals SENTINEL apart from trailing newlines (codexlog.canonical), in a completed initial turn. Exactly one candidate
 must exist. Unparseable files are reported and count as a failure when
@@ -18,8 +18,11 @@ they otherwise look like candidates (same source, originator and cwd).
 
 It compares the candidate's first turn_context with the old thread's last
 one on codexlog.STOPPING_KEYS, and prints DIAGNOSTIC_KEYS. With --write and
-no stopping difference, it writes
-~/.local/state/agent-cycle/check_rst/active-codex-thread.json.
+no stopping difference, it writes active-codex-thread.json in the project's
+state directory (codexlog.STATE_DIR).
+
+The project is selected by AGENT_CYCLE_REPO and AGENT_CYCLE_STATE, both
+check_rst's when unset (codexlog).
 """
 
 from __future__ import annotations
@@ -32,7 +35,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import codexlog
 
-ACTIVE = Path.home() / ".local/state/agent-cycle/check_rst/active-codex-thread.json"
+ACTIVE = codexlog.STATE_DIR / "active-codex-thread.json"
 
 
 def main() -> int:

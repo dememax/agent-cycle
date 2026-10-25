@@ -11,9 +11,26 @@ ambiguous structure raises ``LogError`` instead of being skipped.
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
-CWD = str(Path.home() / "github" / "check_rst")
+
+def _project_path(variable: str, default: Path) -> Path:
+    """The path an environment variable selects, else the default; never relative."""
+    value = os.environ.get(variable)
+    path = Path(value).expanduser() if value else default
+    if not path.is_absolute():
+        raise SystemExit(f"{variable} must be an absolute path, not {value!r}")
+    return path
+
+
+# The project the tools serve. Its repository is every log's expected cwd and
+# the only place where commits may be escalated; its state directory holds the
+# active-thread record and the queue lock. Both default to check_rst's, so an
+# unset environment selects check_rst.
+REPO_DIR = _project_path("AGENT_CYCLE_REPO", Path.home() / "github" / "check_rst")
+STATE_DIR = _project_path("AGENT_CYCLE_STATE", Path.home() / ".local/state/agent-cycle/check_rst")
+CWD = str(REPO_DIR)
 STOPPING_KEYS = (
     "cwd",
     "workspace_roots",
