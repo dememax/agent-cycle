@@ -36,6 +36,12 @@ def tool_input(source: str) -> dict[str, object]:
     return record("response_item", {"type": "custom_tool_call", "input": source})
 
 
+def function_call(arguments: object) -> dict[str, object]:
+    """Build a generated function_call with structural JSON arguments."""
+    raw = json.dumps(arguments) if not isinstance(arguments, str) else arguments
+    return record("response_item", {"type": "function_call", "arguments": raw})
+
+
 def assistant_message(text: str | list[dict[str, str]]) -> dict[str, object]:
     """Build an assistant response item eligible as the final message."""
     return record("response_item", {"type": "message", "role": "assistant", "content": text})
@@ -370,4 +376,99 @@ def test_nonliteral_command_needs_inspection(isolated_env: IsolatedEnvironment, 
 
     assert code == 1
     assert "ESCALATION BAD" in stdout
+    assert "needs inspection" in stdout
+
+
+@pytest.mark.parametrize(
+    ("property_name", "value"),
+    [("workdir", "generatedWorkdir"), ("sandbox_permissions", "generatedPermission")],
+)
+def test_other_nonliteral_escalation_properties_need_inspection(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    property_name: str,
+    value: str,
+) -> None:
+    """Workdir and permission are subject to the same literal-only rule as cmd."""
+    properties = {
+        "cmd": '"git add generated"',
+        "workdir": f'"{isolated_env.repo}"',
+        "sandbox_permissions": '"require_escalated"',
+    }
+    properties[property_name] = value
+    source = "await tools.exec_command({" + ",".join(f"{key}:{item}" for key, item in properties.items()) + "});"
+
+    code, stdout, _stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(tool_input(source)),
+    )
+
+    assert code == 1
+    assert "ESCALATION BAD" in stdout
+    assert f"{property_name} value is not a plain string literal" in stdout
+    assert "needs inspection" in stdout
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "const require_escalated = generatedPermission;",
+        'const generated = "unterminated',
+        "const generated = `${computedValue}`;",
+        'await tools.exec_command({...generatedOptions,sandbox_permissions:"require_escalated"});',
+    ],
+    ids=["bare-marker", "unterminated-string", "template-interpolation", "unrecognized-object"],
+)
+def test_other_ambiguous_source_needs_inspection(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    source: str,
+) -> None:
+    """Markers, broken literals and unrecognized object syntax all fail closed."""
+    code, stdout, _stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(tool_input(source)),
+    )
+
+    assert code == 1
+    assert "ESCALATION BAD" in stdout
+    assert "needs inspection" in stdout
+
+
+def test_function_call_arguments_are_handled_structurally(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """JSON function-call arguments retain independent allowlist decisions."""
+    common = {"workdir": str(isolated_env.repo), "sandbox_permissions": "require_escalated"}
+    records = completed_log(
+        function_call(common | {"cmd": "git add generated"}),
+        function_call(common | {"cmd": "git push origin main"}),
+    )
+
+    code, stdout, _stderr, _output = run_audit(isolated_env, tmp_path, records)
+
+    assert code == 1
+    assert stdout.count("ESCALATION") == 2
+    assert "ESCALATION ok" in stdout
+    assert "ESCALATION BAD" in stdout
+    assert "git push origin main" in stdout
+
+
+def test_malformed_function_call_arguments_need_inspection(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """A function call that is not valid JSON cannot be silently ignored."""
+    code, stdout, _stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(function_call("{not JSON")),
+    )
+
+    assert code == 1
+    assert "ESCALATION BAD" in stdout
+    assert "function_call arguments are not JSON" in stdout
     assert "needs inspection" in stdout
