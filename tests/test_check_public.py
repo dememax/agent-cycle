@@ -416,6 +416,16 @@ def test_email_rule_allows_configured_and_coauthor_addresses(repository: Reposit
     assert foreign not in combined_output(rejected)
 
 
+def test_missing_configured_email_names_user_email_in_refusal(repository: Repository) -> None:
+    """A missing allowed identity has a specific fail-closed diagnostic."""
+    repository.git(["config", "--unset", "user.email"])
+
+    result = repository.gate("HEAD")
+
+    assert result.returncode == 2
+    assert "user.email" in result.stderr
+
+
 @pytest.mark.parametrize(
     "key",
     [
