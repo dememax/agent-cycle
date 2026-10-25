@@ -15,6 +15,11 @@ Reads the rollout log from START_LINE, and:
   schema's required keys, extra keys and enum values.
 Exit status (bit flags): 1 escalation outside the allowlist, 2 result
 invalid, 4 the turn ended on an error (e.g. usage_limit_exceeded); 0 clean.
+
+Custom-tool source is inspected only when its raw text contains
+``sandbox_permissions`` or ``require_escalated``. This matches the tool-call
+protocol's literal property names; a deliberately concatenated or encoded key
+is outside the audit's detectable scope and must not be used.
 """
 
 import json
@@ -87,25 +92,84 @@ def read_string(source: str, start: int, quote: str) -> tuple[str, int]:
     raise ParseFailure("unterminated string literal")
 
 
-def skip_template(source: str, start: int) -> int:
-    """Skip template text, whose contents are data rather than executed calls."""
+def read_regex(source: str, start: int) -> int:
+    """Read a JavaScript regular-expression literal and its flags."""
+    index = start + 1
+    in_class = False
+    while index < len(source):
+        character = source[index]
+        if character in "\r\n":
+            raise ParseFailure("unterminated regular-expression literal")
+        if character == "\\":
+            index += 2
+        elif character == "[":
+            in_class = True
+            index += 1
+        elif character == "]" and in_class:
+            in_class = False
+            index += 1
+        elif character == "/" and not in_class:
+            index += 1
+            while index < len(source) and source[index].isalpha():
+                index += 1
+            return index
+        else:
+            index += 1
+    raise ParseFailure("unterminated regular-expression literal")
+
+
+def expression_can_start(items: list[Token]) -> bool:
+    """Return whether a slash at this point starts an expression."""
+    if not items:
+        return True
+    kind, value, _position = items[-1]
+    if kind in ("string", "number", "regex", "template"):
+        return False
+    if kind == "identifier":
+        return value in {
+            "await",
+            "case",
+            "delete",
+            "do",
+            "else",
+            "in",
+            "new",
+            "of",
+            "return",
+            "throw",
+            "typeof",
+            "void",
+            "yield",
+        }
+    if value in (")", "]", "++", "--"):
+        return False
+    if value == "}":
+        raise ParseFailure("slash after a closing brace is ambiguous")
+    return True
+
+
+def read_template(source: str, start: int) -> tuple[list[Token], int]:
+    """Read template text and tokenize each executed interpolation."""
+    executed: list[Token] = []
     index = start + 1
     while index < len(source):
         if source[index] == "`":
-            return index + 1
+            return executed, index + 1
         if source.startswith("${", index):
-            raise ParseFailure("template interpolation needs inspection")
-        if source[index] == "\\":
+            interpolation, index = token_segment(source, index + 2, stop_at_brace=True)
+            executed.extend(interpolation)
+        elif source[index] == "\\":
             index += 2
         else:
             index += 1
     raise ParseFailure("unterminated template literal")
 
 
-def tokens(source: str) -> list[Token]:
-    """Tokenize enough JavaScript to isolate calls, literals and comments."""
+def token_segment(source: str, start: int = 0, *, stop_at_brace: bool = False) -> tuple[list[Token], int]:
+    """Tokenize source, optionally stopping at a template interpolation's brace."""
     out: list[Token] = []
-    index = 0
+    index = start
+    brace_depth = 0
     while index < len(source):
         character = source[index]
         if character.isspace():
@@ -123,7 +187,18 @@ def tokens(source: str) -> list[Token]:
             out.append(("string", value, index))
             index = end
         elif character == "`":
-            index = skip_template(source, index)
+            executed, end = read_template(source, index)
+            out.extend(executed)
+            out.append(("template", "", index))
+            index = end
+        elif character == "/":
+            if expression_can_start(out):
+                end = read_regex(source, index)
+                out.append(("regex", source[index:end], index))
+                index = end
+            else:
+                out.append(("symbol", character, index))
+                index += 1
         elif character.isalpha() or character in "_$":
             end = index + 1
             while end < len(source) and (source[end].isalnum() or source[end] in "_$"):
@@ -137,10 +212,54 @@ def tokens(source: str) -> list[Token]:
             value = match.group(0)
             out.append(("number", value, index))
             index += len(value)
+        elif stop_at_brace and character == "}" and brace_depth == 0:
+            return out, index + 1
+        elif character == "{":
+            brace_depth += 1
+            out.append(("symbol", character, index))
+            index += 1
+        elif character == "}":
+            brace_depth -= 1
+            if brace_depth < 0:
+                raise ParseFailure("unbalanced closing brace")
+            out.append(("symbol", character, index))
+            index += 1
+        elif source.startswith(("++", "--"), index):
+            out.append(("symbol", source[index : index + 2], index))
+            index += 2
         else:
             out.append(("symbol", character, index))
             index += 1
-    return out
+    if stop_at_brace:
+        raise ParseFailure("unterminated template interpolation")
+    return out, index
+
+
+def tokens(source: str) -> list[Token]:
+    """Tokenize enough JavaScript to isolate calls, literals and comments."""
+    return token_segment(source)[0]
+
+
+NON_LITERAL = object()
+
+
+def skip_expression(items: list[Token], index: int) -> int:
+    """Skip one non-literal property expression through its top-level delimiter."""
+    start = index
+    closing: list[str] = []
+    pairs = {"(": ")", "[": "]", "{": "}"}
+    while index < len(items):
+        value = items[index][1]
+        if not closing and value in (",", "}"):
+            break
+        if value in pairs:
+            closing.append(pairs[value])
+        elif value in (")", "]", "}") and (not closing or value != closing.pop()):
+            raise ParseFailure("unbalanced non-literal property value")
+        index += 1
+    if index == start or closing:
+        raise ParseFailure("unrecognized non-literal property value")
+    return index
 
 
 def parse_literal(items: list[Token], index: int) -> tuple[object, int]:
@@ -186,9 +305,13 @@ def parse_object(items: list[Token], index: int) -> tuple[dict[str, object], int
         if index >= len(items) or items[index][1] != ":":
             raise ParseFailure(f"object property {key} lacks a colon")
         index += 1
-        if key in ("cmd", "workdir", "sandbox_permissions") and (index >= len(items) or items[index][0] != "string"):
+        if key == "sandbox_permissions" and (index >= len(items) or items[index][0] != "string"):
             raise ParseFailure(f"{key} value is not a plain string literal")
-        result[key], index = parse_literal(items, index)
+        if key in ("cmd", "workdir") and (index >= len(items) or items[index][0] != "string"):
+            result[key] = NON_LITERAL
+            index = skip_expression(items, index)
+        else:
+            result[key], index = parse_literal(items, index)
         if index < len(items) and items[index][1] == ",":
             index += 1
         elif index >= len(items) or items[index][1] != "}":
@@ -213,6 +336,8 @@ def end_of_call(items: list[Token], open_index: int) -> int:
 
 def source_escalations(source: str) -> tuple[list[Escalation], list[str]]:
     """Extract executed literal exec_command calls and all ambiguities."""
+    if "sandbox_permissions" not in source and "require_escalated" not in source:
+        return [], []
     try:
         items = tokens(source)
     except ParseFailure as error:
@@ -236,8 +361,10 @@ def source_escalations(source: str) -> tuple[list[Escalation], list[str]]:
                 sandbox = options.get("sandbox_permissions")
                 if sandbox == "require_escalated":
                     command, workdir = options.get("cmd"), options.get("workdir")
-                    if not isinstance(command, str) or not isinstance(workdir, str):
-                        raise ParseFailure("escalated exec_command lacks literal cmd or workdir")
+                    if not isinstance(command, str):
+                        raise ParseFailure("cmd value is not a plain string literal")
+                    if not isinstance(workdir, str):
+                        raise ParseFailure("workdir value is not a plain string literal")
                     escalations.append((command, workdir))
             except ParseFailure as error:
                 problems.append(str(error))

@@ -414,18 +414,16 @@ def test_other_nonliteral_escalation_properties_need_inspection(
     "source",
     [
         "const require_escalated = generatedPermission;",
-        'const generated = "unterminated',
-        "const generated = `${computedValue}`;",
         'await tools.exec_command({...generatedOptions,sandbox_permissions:"require_escalated"});',
     ],
-    ids=["bare-marker", "unterminated-string", "template-interpolation", "unrecognized-object"],
+    ids=["bare-marker", "unrecognized-object"],
 )
 def test_other_ambiguous_source_needs_inspection(
     isolated_env: IsolatedEnvironment,
     tmp_path: Path,
     source: str,
 ) -> None:
-    """Markers, broken literals and unrecognized object syntax all fail closed."""
+    """In-scope markers and unrecognized object syntax fail closed."""
     code, stdout, _stderr, _output = run_audit(
         isolated_env,
         tmp_path,
@@ -435,6 +433,27 @@ def test_other_ambiguous_source_needs_inspection(
     assert code == 1
     assert "ESCALATION BAD" in stdout
     assert "needs inspection" in stdout
+
+
+@pytest.mark.parametrize(
+    "source",
+    ['const generated = "unterminated', "const generated = `${computedValue}`;"],
+    ids=["unterminated-string", "template-interpolation"],
+)
+def test_ambiguous_source_without_escalation_marker_is_out_of_scope(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    source: str,
+) -> None:
+    """Source without a literal escalation marker needs no inspection."""
+    code, stdout, stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(tool_input(source)),
+    )
+
+    assert code == 0, stderr
+    assert "ESCALATION" not in stdout
 
 
 def test_function_call_arguments_are_handled_structurally(
