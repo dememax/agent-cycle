@@ -8,13 +8,13 @@
 checks = ["python", "mypy", "rst", "shell", "json"]
 
 [python]
-dirs = ["bin", "docs/conf.py", "tests"]
+dirs = ["bin", "docs/conf.py", "tests", "tools"]
 
 [rst]
 dir = "docs"
 
 [shell]
-globs = ["bin/*.sh"]
+globs = ["bin/*.sh", "tools/*.sh", "tools/pre-push"]
 
 # Listed explicitly: check_formatting's json checker takes no globs.
 # package-lock.json is machine-generated and never listed.
