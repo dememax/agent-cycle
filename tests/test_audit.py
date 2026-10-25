@@ -31,6 +31,11 @@ def tool_call(command: str, workdir: str) -> dict[str, object]:
     return record("response_item", {"type": "custom_tool_call", "arguments": arguments})
 
 
+def tool_input(source: str) -> dict[str, object]:
+    """Build one generated custom-tool source input."""
+    return record("response_item", {"type": "custom_tool_call", "input": source})
+
+
 def assistant_message(text: str | list[dict[str, str]]) -> dict[str, object]:
     """Build an assistant response item eligible as the final message."""
     return record("response_item", {"type": "message", "role": "assistant", "content": text})
@@ -216,3 +221,153 @@ def test_extracts_last_message_honors_start_line_and_prints_reviewer(
     assert "approvals_reviewer: generated-reviewer" in stdout
     assert (output / "final-reply.md").read_text(encoding="utf-8") == VALID_RESULT
     assert json.loads((output / "result.json").read_text(encoding="utf-8")) == {"status": "ok"}
+
+
+def test_template_literal_cannot_hide_real_forbidden_escalation(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """An unclosed example inside a template does not absorb an executed call."""
+    source = (
+        "const patch = `generated fixture: "
+        + 'exec_command({cmd:"git add generated",workdir:"'
+        + str(isolated_env.repo)
+        + '",sandbox_permissions:"require_escalated"`;'
+        + "\nawait tools.exec_command("
+        + '{cmd:"git push origin main",workdir:"'
+        + str(isolated_env.repo)
+        + '",sandbox_permissions:"require_escalated"});'
+    )
+
+    code, stdout, _stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(tool_input(source)),
+    )
+
+    assert code == 1
+    assert "ESCALATION BAD" in stdout
+    assert "git push origin main" in stdout
+    assert "git add generated" not in stdout
+
+
+def test_escalation_example_inside_patch_string_is_not_executed(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """A complete escalation-shaped fixture inside a string is ignored."""
+    example = (
+        'exec_command({cmd:"git push origin main",workdir:"'
+        + str(isolated_env.repo)
+        + '",sandbox_permissions:"require_escalated"})'
+    )
+    source = "const patch = " + json.dumps("*** Begin Patch\n+" + example + "\n*** End Patch") + ";"
+
+    code, stdout, stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(tool_input(source)),
+    )
+
+    assert code == 0, stderr
+    assert "ESCALATION" not in stdout
+
+
+def test_two_executed_escalations_are_reported_independently(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """An allowed first call cannot conceal a forbidden second call."""
+    source = (
+        'await tools.exec_command({cmd:"git add generated",workdir:"'
+        + str(isolated_env.repo)
+        + '",sandbox_permissions:"require_escalated"});'
+        + '\nawait tools.exec_command({cmd:"git push origin main",workdir:"'
+        + str(isolated_env.repo)
+        + '",sandbox_permissions:"require_escalated"});'
+    )
+
+    code, stdout, _stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(tool_input(source)),
+    )
+
+    assert code == 1
+    assert stdout.count("ESCALATION") == 2
+    assert "ESCALATION ok" in stdout
+    assert "ESCALATION BAD" in stdout
+    assert "git add generated" in stdout
+    assert "git push origin main" in stdout
+
+
+@pytest.mark.parametrize(
+    "argument",
+    ["options", "JSON.parse(generatedPayload)"],
+    ids=["variable", "json-parse"],
+)
+def test_nonliteral_exec_argument_needs_inspection(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    argument: str,
+) -> None:
+    """An escalation marker plus a computed argument is always ambiguous."""
+    source = (
+        'const options = {cmd:"git add generated",workdir:"'
+        + str(isolated_env.repo)
+        + '",sandbox_permissions:"require_escalated"};\n'
+        + f"await tools.exec_command({argument});"
+    )
+
+    code, stdout, _stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(tool_input(source)),
+    )
+
+    assert code == 1
+    assert "ESCALATION BAD" in stdout
+    assert "needs inspection" in stdout
+
+
+def test_escalation_marker_inside_comment_is_ignored(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """Commented example text does not turn a normal call into an escalation."""
+    source = (
+        '// tools.exec_command({cmd:"git push origin main",workdir:"'
+        + str(isolated_env.repo)
+        + '",sandbox_permissions:"require_escalated"})\n'
+        + 'await tools.exec_command({cmd:"git status",workdir:"'
+        + str(isolated_env.repo)
+        + '"});'
+    )
+
+    code, stdout, stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(tool_input(source)),
+    )
+
+    assert code == 0, stderr
+    assert "ESCALATION" not in stdout
+
+
+def test_nonliteral_command_needs_inspection(isolated_env: IsolatedEnvironment, tmp_path: Path) -> None:
+    """Even an executed literal object is ambiguous when cmd is computed."""
+    source = (
+        'await tools.exec_command({cmd:generatedCommand,workdir:"'
+        + str(isolated_env.repo)
+        + '",sandbox_permissions:"require_escalated"});'
+    )
+
+    code, stdout, _stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(tool_input(source)),
+    )
+
+    assert code == 1
+    assert "ESCALATION BAD" in stdout
+    assert "needs inspection" in stdout
