@@ -1,0 +1,9 @@
+# Copyright (C) 2026 Maxime P. DEMENTYEV
+# SPDX-License-Identifier: GPL-3.0-only
+# ShellCheck policy: correctness and advisory style checks — agent-cycle project
+#
+# Each script declares its dialect by its shebang line.
+external-sources=true
+source-path=SCRIPTDIR
+check-sourced=true
+enable=all

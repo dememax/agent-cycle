@@ -1,0 +1,61 @@
+// Copyright (C) 2026 Maxime P. DEMENTYEV
+// SPDX-License-Identifier: GPL-3.0-only
+// VS Code workspace defaults — agent-cycle project
+{
+  "files.encoding": "utf8",
+  "files.eol": "\n",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  "editor.rulers": [120],
+
+  "python.defaultInterpreterPath": "/usr/bin/python3.14",
+  "python-envs.terminal.autoActivationType": "off",
+  // The tools import the shared reader (codexlog) from their own directory.
+  "python.analysis.extraPaths": ["${workspaceFolder}/bin"],
+
+  "ruff.configurationPreference": "filesystemFirst",
+  "[python]": {
+    "editor.defaultFormatter": "charliermarsh.ruff",
+    "editor.formatOnSave": true
+  },
+  // Prettier resolves the project's pinned version from node_modules/.
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "editor.formatOnSave": true
+  },
+
+  "restructuredtext": {
+    "preview.fontSize": 18,
+    "linter.run": "onSave",
+    "preview.autoShow": true,
+    "confPath": "docs/conf.py",
+    "sphinxBuildArgs": ["-n", "-v"],
+    "sphinxBuildPath": "/tmp/vscode-build/agent-cycle"
+  },
+
+  "markdown": {
+    "preview.fontSize": 18,
+    "preview.scrollEditorWithPreview": true
+  },
+
+  "cSpell.words": [
+    "autosectionlabel",
+    "check_rst",
+    "codexlog",
+    "DEMENTYEV",
+    "dememax",
+    "docutils",
+    "jsonl",
+    "Maxime",
+    "mypy",
+    "reStructuredText",
+    "shellcheck",
+    "SPDX",
+    "Sphinx",
+    "toctree"
+  ]
+}

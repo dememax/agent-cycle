@@ -1,0 +1,9 @@
+{
+  "name": "agent-cycle",
+  "private": true,
+  "description": "Pinned Prettier for check_formatting's json checker; nothing here is published to npm",
+  "license": "GPL-3.0-only",
+  "devDependencies": {
+    "prettier": "3.9.10"
+  }
+}

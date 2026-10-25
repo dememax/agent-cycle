@@ -1,0 +1,59 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "work_item",
+    "plan_revision",
+    "base_commit",
+    "commits",
+    "red",
+    "behaviour",
+    "red_tests_modified_by_green",
+    "validation_claimed",
+    "blocked_reason",
+    "report"
+  ],
+  "properties": {
+    "schema_version": { "type": "integer", "enum": [1] },
+    "status": { "type": "string", "enum": ["ready_for_review", "blocked", "needs_user"] },
+    "work_item": { "type": "string" },
+    "plan_revision": { "type": "integer" },
+    "base_commit": { "type": "string" },
+    "commits": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "sha", "subject"],
+        "properties": {
+          "role": { "type": "string", "enum": ["red", "green", "single"] },
+          "sha": { "type": "string" },
+          "subject": { "type": "string" }
+        }
+      }
+    },
+    "red": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["runner", "selectors", "expected_failing", "failure_kind"],
+          "properties": {
+            "runner": { "type": "string", "enum": ["pytest"] },
+            "selectors": { "type": "array", "items": { "type": "string" } },
+            "expected_failing": { "type": "array", "items": { "type": "string" } },
+            "failure_kind": { "type": "string", "enum": ["assertion"] }
+          }
+        }
+      ]
+    },
+    "behaviour": { "type": "string", "enum": ["unchanged", "changed"] },
+    "red_tests_modified_by_green": { "type": "boolean" },
+    "validation_claimed": { "type": "array", "items": { "type": "string" } },
+    "blocked_reason": { "type": ["string", "null"] },
+    "report": { "type": "string" }
+  }
+}

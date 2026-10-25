@@ -1,0 +1,12 @@
+// Copyright (C) 2026 Maxime P. DEMENTYEV
+// SPDX-License-Identifier: GPL-3.0-only
+// VS Code extensions this workspace's settings expect — agent-cycle project
+{
+  "recommendations": [
+    "charliermarsh.ruff",
+    "esbenp.prettier-vscode",
+    "lextudio.restructuredtext",
+    "ms-python.python",
+    "timonwong.shellcheck"
+  ]
+}

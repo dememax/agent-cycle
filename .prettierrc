@@ -1,0 +1,12 @@
+{
+  "printWidth": 120,
+  "overrides": [
+    {
+      "files": [".vscode/extensions.json", ".vscode/settings.json"],
+      "options": {
+        "parser": "jsonc",
+        "trailingComma": "none"
+      }
+    }
+  ]
+}

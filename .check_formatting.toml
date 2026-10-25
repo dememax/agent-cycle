@@ -1,0 +1,29 @@
+# Copyright (C) 2026 Maxime P. DEMENTYEV
+# SPDX-License-Identifier: GPL-3.0-only
+# check_formatting configuration for this repository — agent-cycle project
+#
+# An explicit, versioned declaration of what is checked. Unknown keys are a
+# hard error.
+
+checks = ["python", "mypy", "rst", "shell", "json"]
+
+[python]
+dirs = ["bin", "docs/conf.py"]
+
+[rst]
+dir = "docs"
+
+[shell]
+globs = ["bin/*.sh"]
+
+# Listed explicitly: check_formatting's json checker takes no globs.
+# package-lock.json is machine-generated and never listed.
+[json]
+files = [
+    ".prettierrc",
+    ".vscode/extensions.json",
+    ".vscode/settings.json",
+    "package.json",
+    "schemas/implementation-result-v1.json",
+    "schemas/review-result-v1.json",
+]
