@@ -315,6 +315,62 @@ def test_post_submission_failure_keeps_marker_and_blocks_later_calls(
     assert not (case.turn_dir / "turn-id").exists()
 
 
+@pytest.mark.parametrize("mode", ["partial_then_turn", "started_then_composer"])
+def test_waiting_state_can_resolve_to_success(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    mode: str,
+) -> None:
+    """An incomplete line or temporarily missing composer is polled again."""
+    case = make_case(isolated_env, tmp_path)
+
+    returncode, stdout, stderr = run_queue(
+        isolated_env,
+        case,
+        mode,
+        extra_env={"S0_QUEUE_TIMEOUT": "7", "FAKE_CODEX_STAGE_DELAY": "3.4"},
+    )
+
+    assert returncode == 0, stderr
+    assert "turn-delayed" in stdout
+    assert (case.turn_dir / "turn-id").read_text(encoding="utf-8") == "turn-delayed\n"
+    assert not (case.state / "pending.json").exists()
+
+
+@pytest.mark.parametrize("mode", ["partial_forever", "started_only"])
+def test_waiting_state_times_out_and_keeps_pending(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    mode: str,
+) -> None:
+    """An unresolved incomplete line or absent composer remains ambiguous."""
+    case = make_case(isolated_env, tmp_path)
+
+    returncode, _stdout, stderr = run_queue(
+        isolated_env,
+        case,
+        mode,
+        extra_env={"S0_QUEUE_TIMEOUT": "3.2"},
+    )
+
+    assert returncode == 1
+    assert "submitted turn was not observed" in stderr
+    assert (case.state / "pending.json").is_file()
+    assert not (case.turn_dir / "turn-id").exists()
+
+
+def test_two_composer_messages_for_new_turn_refuse(isolated_env: IsolatedEnvironment, tmp_path: Path) -> None:
+    """Even two identical composer messages make the new turn ambiguous."""
+    case = make_case(isolated_env, tmp_path)
+
+    returncode, _stdout, stderr = run_queue(isolated_env, case, "duplicate_composer")
+
+    assert returncode == 1
+    assert "does not carry the submitted prompt" in stderr
+    assert (case.state / "pending.json").is_file()
+    assert not (case.turn_dir / "turn-id").exists()
+
+
 def test_success_records_turn_and_removes_pending_marker(
     isolated_env: IsolatedEnvironment,
     tmp_path: Path,

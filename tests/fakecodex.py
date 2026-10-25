@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -40,8 +41,33 @@ def composer(turn_id: str, text: str) -> str:
     )
 
 
+def append(path: Path, text: str) -> None:
+    """Append one stage of an asynchronously generated rollout."""
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(text)
+
+
+def worker(mode: str, log: Path, message: str, delay: float) -> int:
+    """Write delayed stages after the queue command itself has returned."""
+    if mode.startswith("partial"):
+        append(log, started("turn-delayed").removesuffix("\n"))
+        if mode == "partial_forever":
+            return 0
+        time.sleep(delay)
+        append(log, "\n" + composer("turn-delayed", message))
+        return 0
+    append(log, started("turn-delayed"))
+    if mode == "started_only":
+        return 0
+    time.sleep(delay)
+    append(log, composer("turn-delayed", message))
+    return 0
+
+
 def main() -> int:
     """Emulate the subset of ``codex queue`` used by the wrapper."""
+    if len(sys.argv) == 6 and sys.argv[1] == "--worker":
+        return worker(sys.argv[2], Path(sys.argv[3]), sys.argv[4], float(sys.argv[5]))
     if len(sys.argv) != 6 or sys.argv[1] != "queue" or sys.argv[2] != "--thread" or sys.argv[4] != "--message":
         print("unsupported fake invocation", file=sys.stderr)
         return 2
@@ -54,6 +80,25 @@ def main() -> int:
     if mode == "nonzero":
         print("selected fake failure", file=sys.stderr)
         return 23
+    if mode in {"partial_then_turn", "partial_forever", "started_then_composer", "started_only"}:
+        subprocess.Popen(
+            [
+                sys.executable,
+                __file__,
+                "--worker",
+                mode,
+                str(log),
+                message,
+                os.environ.get("FAKE_CODEX_STAGE_DELAY", "3.4"),
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            start_new_session=True,
+        )
+        print("queued by fake codex")
+        return 0
     time.sleep(float(os.environ.get("FAKE_CODEX_DELAY", "0.01")))
     additions = ""
     if mode == "turn":
@@ -67,6 +112,10 @@ def main() -> int:
     elif mode == "rewrite":
         Path(os.environ["FAKE_CODEX_PROMPT"]).write_text("rewritten after submission\n", encoding="utf-8")
         additions = started("turn-rewrite") + composer("turn-rewrite", message)
+    elif mode == "duplicate_composer":
+        additions = (
+            started("turn-duplicate") + composer("turn-duplicate", message) + composer("turn-duplicate", message)
+        )
     elif mode != "none":
         print(f"unknown fake mode: {mode}", file=sys.stderr)
         return 2

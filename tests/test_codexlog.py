@@ -70,7 +70,7 @@ def test_canonical_removes_only_trailing_newlines(isolated_env: IsolatedEnvironm
 
 
 def test_initial_composer_skips_injected_items(isolated_env: IsolatedEnvironment, tmp_path: Path) -> None:
-    """The first completed user.text turn wins, not earlier injected context."""
+    """Injected context is skipped before the first user.text message."""
     log = tmp_path / "rollout.jsonl"
     write_records(
         log,
@@ -98,6 +98,52 @@ def test_initial_composer_skips_injected_items(isolated_env: IsolatedEnvironment
 
     assert returncode == 0, stderr
     assert json.loads(stdout) == ["turn-initial", "first prompt"]
+
+
+def test_initial_composer_refuses_when_no_composer_exists(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """Injected user items do not satisfy the composer requirement."""
+    log = tmp_path / "rollout.jsonl"
+    write_records(
+        log,
+        [
+            session_meta(thread_id="thread-generated", cwd=isolated_env.repo),
+            composer("turn-injected", "injected", kinds=("environment_context",)),
+        ],
+    )
+
+    returncode, stdout, stderr = run_probe(isolated_env, "initial", log)
+
+    assert returncode != 0
+    assert stdout == ""
+    assert "no composer message" in stderr
+
+
+def test_initial_composer_does_not_fall_through_from_incomplete_first_turn(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """A later completed composer turn cannot replace an incomplete first one."""
+    log = tmp_path / "rollout.jsonl"
+    write_records(
+        log,
+        [
+            session_meta(thread_id="thread-generated", cwd=isolated_env.repo),
+            task_started("turn-first"),
+            composer("turn-first", "first prompt"),
+            task_started("turn-later"),
+            composer("turn-later", "later prompt"),
+            task_complete("turn-later"),
+        ],
+    )
+
+    returncode, stdout, stderr = run_probe(isolated_env, "initial", log)
+
+    assert returncode != 0
+    assert stdout == ""
+    assert "the initial composer turn is not complete" in stderr
 
 
 def test_running_turns_pair_events_by_turn_id(isolated_env: IsolatedEnvironment, tmp_path: Path) -> None:
