@@ -33,6 +33,7 @@ outside the repository; it runs before any push (first work package).
 | Path | Purpose |
 |---|---|
 | `bin/` | The command-line tools |
+| `tests/` | Generated-log tests and the isolated fake Codex CLI |
 | `schemas/` | Versioned final-message contracts |
 | `docs/` | Sphinx documentation in reStructuredText |
 | `.check_formatting.toml` | What check_formatting checks, and where |
@@ -88,15 +89,18 @@ Every check is declared in `.check_formatting.toml` and runs through
 [check_formatting](https://github.com/dememax/check_formatting):
 
 ```bash
+python3.14 -m pytest
 check_formatting --all
 ```
 
-It runs Ruff (format and lint), mypy, check_rst on `docs/`, ShellCheck and
+The pytest suite uses only generated logs and isolates every subprocess from
+the real Codex home, CLI, repositories and state. `check_formatting --all`
+runs Ruff (format and lint), mypy, check_rst on `docs/`, ShellCheck and
 Prettier. check_rst reads `.check_rst.toml` and therefore also builds the
-documentation with Sphinx: any Sphinx warning or error in a checked file
-fails the check. Fix findings in the code or the documents; do not weaken a
-configuration to obtain a clean run. A remaining suppression is the
-narrowest error-code-specific form, with its reason.
+documentation with Sphinx: any Sphinx warning or error in a checked file fails
+the check. Fix findings in the code or the documents; do not weaken a
+configuration to obtain a clean run. A remaining suppression is the narrowest
+error-code-specific form, with its reason.
 
 **Known debt at the import:** formatting is clean (Ruff format, Prettier,
 check_rst). The tools still have semantic findings, to be fixed as
