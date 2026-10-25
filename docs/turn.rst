@@ -14,10 +14,9 @@ project's state directory. One chat's turn runs at a time.
 Selecting the project
 ***********************
 
-The tools that read the implementer's logs (the queue, the identifier and
-the audit) take the project from two variables. Both must be absolute, and
-both default to check_rst's. The snapshot and the usage report do not read
-them.
+The queue, the identifier and the audit take the project from two
+variables. Both must be absolute, and both default to check_rst's. The
+snapshot and the usage report do not read them.
 
 - ``AGENT_CYCLE_REPO``: the repository, which is the chat's expected
   working directory and the only one where commits may be escalated;
@@ -80,8 +79,9 @@ After the turn
    allowlist, or one it cannot parse unambiguously within its scope
    (:doc:`design`, Guards); 2 for a final message with no JSON object, or
    whose object fails the top-level checks (:doc:`design`, Contracts); 4
-   for a turn that ended on an error, such as a usage limit. It also writes
-   ``final-reply.md`` and ``result.json``.
+   for a turn that ended on an error, such as a usage limit. It always
+   writes ``final-reply.md``, and ``result.json`` when the extracted span
+   parses as JSON.
 3. Compare ``snapshot-after.txt`` with ``snapshot-before.txt``. Only
    the project's HEAD and status may have changed. The extension's
    ``refs/codex/`` turn checkpoints are counted separately.
@@ -119,6 +119,7 @@ The turn directory
    * - ``finished``
      - when the turn completed
    * - ``audit.txt``, ``final-reply.md``, ``result.json``
-     - the audit and the extracted final message
+     - the audit and the final message; ``result.json`` only when the
+       extracted span parses as JSON
    * - ``usage.json``, ``usage-row.txt``
      - both agents' usage for the turn

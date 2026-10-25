@@ -107,7 +107,8 @@ are, not a sandbox:
    ``require_escalated``. A property name built by concatenation or
    encoding is outside that scope; the prompt forbids it. The audit is the
    primary detector of a forbidden push.
-3. Snapshots of every local repository, before and after the turn
+3. Snapshots of each repository under ``~/github/*/`` and
+   ``~/github/*/*/``, before and after the turn
    (``bin/github-snapshot.sh``): HEAD, the refs (including remote-tracking
    refs) and the status. A change to another repository shows, and so does
    a push that updates a local tracking ref. A push that changes no local
@@ -118,9 +119,12 @@ are, not a sandbox:
 4. On the hosting side, a branch ruleset that blocks force pushes and
    deletion of the main branch. It does not block an ordinary push.
 
-A violation is found after the fact, not prevented. Against an ordinary
-push, the protection is the implementer's instructions, the audit, the
-snapshots and the reviewer's judgment.
+The guards detect violations within their documented scope, after the
+fact; they prevent nothing, and a violation outside that scope, such as an
+escalation whose property name was built by concatenation or a push that
+changes no local ref, can go unseen. Against an ordinary push, the
+protection is the implementer's instructions, the audit, the snapshots and
+the reviewer's judgment.
 
 *******************
 Where state lives
