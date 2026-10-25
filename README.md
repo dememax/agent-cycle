@@ -5,25 +5,37 @@ SPDX-License-Identifier: GPL-3.0-only
 
 # agent-cycle
 
-Tools and procedures for a pair of AI coding agents working on one
-repository: one agent drives and reviews, the other implements, one
-test-first RED/GREEN pair at a time. The driver queues each turn into the
-implementer's visible chat, audits what the implementer did, and reviews
-its commits by reproducing them. Nothing the implementer reports is
-accepted on its word, and the same holds the other way round.
+Fail-closed tooling for a reviewer-implementer pair of AI coding agents.
+One agent drives and reviews; the other implements, one test-first
+RED/GREEN pair at a time; a person decides everything that is theirs. The
+driver queues each turn into the implementer's visible chat, audits the
+commands the implementer escalated, snapshots the repositories, and
+reviews the commits by reproducing them. Nothing either agent reports is
+accepted on its word.
 
 Today the driver is Claude Code and the implementer is Codex, in its VS Code
-chat. The process is meant to be project-agnostic; the first project it
-serves is [check_rst](https://github.com/dememax/check_rst).
+chat. The process is project-agnostic: each project has its own
+implementer chat and its own state directory. The first project served is
+[check_rst](https://github.com/dememax/check_rst); the second is this
+repository itself.
 
 ## Status
 
-**Initial import.** The tools are the ones in use today (stage "S0+": the
-driver queues every turn itself, nobody relays messages, and the human
-decides only what is theirs), imported as they were reviewed. The project
-they serve is selected by two environment variables, which default to
-check_rst's (below). Project profiles, the tests and the push gate are the
-first work package; see [AGENTS.md](AGENTS.md).
+- **In use:** stage "S0+": the driver queues every turn itself, and nobody
+  relays messages.
+- **Tests:** `python3.14 -m pytest` characterizes the tools' refusal paths
+  with generated logs and a fake Codex CLI only.
+- **The first work package continues:** a fail-closed parser for the
+  audit's escalation detection (under review), the push gate, the remaining
+  lint findings, and project profiles replacing the two environment
+  variables (below). See [AGENTS.md](AGENTS.md).
+
+## Documentation
+
+In reStructuredText, built with Sphinx from `docs/`: the design (roles,
+principles, contracts, guards), the stages of automation, the procedure for
+one turn, session renewal and bootstrap, the token economy, and review
+practices.
 
 ## Warnings
 
