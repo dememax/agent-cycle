@@ -66,7 +66,10 @@ variables select the project; both default to check_rst's:
 | `AGENT_CYCLE_STATE` | `~/.local/state/agent-cycle/check_rst` | the active-chat record and the queue lock |
 
 Both must be absolute. The queue refuses an active-chat record that belongs
-to another repository. Project profiles replace these variables later.
+to another repository. A project's first chat is identified against a chat
+of another project: its settings are compared after moving that chat's
+repository paths to the selected repository, and must otherwise be
+identical. Project profiles replace these variables later.
 
 ## License
 

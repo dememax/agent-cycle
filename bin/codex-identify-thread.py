@@ -17,7 +17,10 @@ must exist. Unparseable files are reported and count as a failure when
 they otherwise look like candidates (same source, originator and cwd).
 
 It compares the candidate's first turn_context with the old thread's last
-one on codexlog.STOPPING_KEYS, and prints DIAGNOSTIC_KEYS. With --write and
+one on codexlog.STOPPING_KEYS, and prints DIAGNOSTIC_KEYS. When the old
+thread belongs to another repository (the first chat of a project), its
+settings are compared relocated: every string that is the old repository's
+path, or a path under it, is moved to the selected repository first. With --write and
 no stopping difference, it writes active-codex-thread.json in the project's
 state directory (codexlog.STATE_DIR).
 
@@ -36,6 +39,19 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import codexlog
 
 ACTIVE = codexlog.STATE_DIR / "active-codex-thread.json"
+
+
+def relocate(value: object, old_root: str, new_root: str) -> object:
+    """VALUE with each string that is OLD_ROOT, or a path under it, moved to NEW_ROOT."""
+    if isinstance(value, str):
+        if value == old_root or value.startswith(old_root + "/"):
+            return new_root + value[len(old_root) :]
+        return value
+    if isinstance(value, list):
+        return [relocate(item, old_root, new_root) for item in value]
+    if isinstance(value, dict):
+        return {key: relocate(item, old_root, new_root) for key, item in value.items()}
+    return value
 
 
 def main() -> int:
@@ -105,6 +121,12 @@ def main() -> int:
         print("FAIL: missing turn_context")
         return 1
     new, old = new_contexts[0], old_contexts[-1]
+    # A first chat for another project takes its settings from a chat of
+    # another repository: compare them relocated to the selected one.
+    old_cwd = codexlog.session_meta(old_recs).get("cwd")
+    if isinstance(old_cwd, str) and old_cwd != codexlog.CWD:
+        print(f"  profile compared relocated: {old_cwd} -> {codexlog.CWD}")
+        old = {k: relocate(v, old_cwd, codexlog.CWD) for k, v in old.items()}
     stopping = [k for k in codexlog.STOPPING_KEYS if new.get(k) != old.get(k)]
     for key in codexlog.STOPPING_KEYS:
         print(f"  {'DIFF' if key in stopping else 'same'} {key}: {json.dumps(new.get(key))[:160]}")
