@@ -69,6 +69,7 @@ practices.
 | `bin/codexlog.py` | The strict log reader the tools share |
 | `tools/check-public.sh` | Fail closed on protected patterns in the content and metadata a push would publish |
 | `tools/pre-push` | Tracked Git hook that applies the public-content gate to proposed ref updates |
+| `tools/install-gate.sh` | Install the gate from a selected commit into an external, versioned directory |
 | `schemas/*.json` | The implementer's and the reviewer's final-message contracts |
 
 Run state (the active-chat record, the turn directories, the evidence)
@@ -80,8 +81,8 @@ lives outside the repository, in `~/.local/state/agent-cycle/<project>/`.
 revision means every commit reachable from it. For every selected commit, the
 gate scans:
 
-- every range-specific blob reported by `git rev-list --objects`, as bytes,
-  including a blob added and removed within the range;
+- every range-specific blob reported by `git rev-list --objects`, including a
+  blob added and removed within the range;
 - changed path names;
 - the complete commit message; and
 - the author and committer names and email addresses.
@@ -109,12 +110,36 @@ when they have a value on the same line: `creator_user_id`,
 `creator_account_id`, `account_id`, `accountUuid`, `organizationUuid`,
 `userID` and `user_id`.
 
-Install the tracked hook for this clone with one command (the push remains a
-person's action):
+Do not point `core.hooksPath` into the work tree: checking out a commit that
+does not contain the hook would silently disable it. Instead, install an
+approved commit into a new directory outside the repository. The revision
+defaults to `HEAD`; `--rev REV` selects one explicitly:
 
 ```bash
-git config core.hooksPath tools
+tools/install-gate.sh --rev APPROVED_REV ~/.local/lib/agent-cycle/gate-REVISION
 ```
+
+The installer resolves the revision to a full commit and reads
+`check-public.sh`, `check-public.py` and `pre-push` from that commit with Git,
+not from the work tree. It makes them executable and writes `REVISION` and
+`SHA256SUMS` beside them. It refuses a non-empty destination, a destination
+inside this work tree, an unresolved revision, or any failed Git command. It
+does not alter Git configuration; on success it prints the
+`git config core.hooksPath DEST` command for the person to run.
+
+Hooks are configured per clone. After running the printed command, verify both
+the configured path and the hook file:
+
+```bash
+DEST=~/.local/lib/agent-cycle/gate-REVISION
+git config core.hooksPath
+test -x "$DEST/pre-push"
+```
+
+Reinstall every approved gate change into a new `DEST`, then update
+`core.hooksPath` to that directory. If the configured directory or hook is
+missing, Git runs no hook. `git push --no-verify` also skips it. The push itself
+remains a person's action.
 
 Exit status 0 means the complete requested scan was clean, 1 means it found a
 protected pattern, and 2 means it refused to scan. Refusals include a missing,
@@ -125,10 +150,14 @@ printing the matching text or deny-list value. There is no inline exception or
 suppression mechanism: fix a false positive in the text or in the private
 deny-list.
 
-This gate matches configured and built-in patterns. It cannot establish that
-a push contains no private information, cannot recognize a sensitive value
-that no rule describes, and is not a sandbox. Review and the rule that only a
-person pushes remain necessary.
+Blob bytes are decoded as UTF-8 while preserving undecodable bytes before the
+text patterns run. The scanner does not decode UTF-16, decompress content, or
+reconstruct a literal value split across lines or source-code string
+concatenations; a purpose-written regular expression can cover some textual
+variants. More generally, the gate cannot recognize a sensitive value that no
+rule describes, cannot establish that a push contains no private information,
+and is not a sandbox. Its per-clone hook can be absent or bypassed as described
+above. Review and the rule that only a person pushes remain necessary.
 
 ## Selecting the project
 
