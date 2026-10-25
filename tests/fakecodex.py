@@ -42,7 +42,7 @@ def composer(turn_id: str, text: str) -> str:
 
 def main() -> int:
     """Emulate the subset of ``codex queue`` used by the wrapper."""
-    if len(sys.argv) < 6 or sys.argv[1:4:2] != ["queue", "--thread"] or sys.argv[4] != "--message":
+    if len(sys.argv) != 6 or sys.argv[1] != "queue" or sys.argv[2] != "--thread" or sys.argv[4] != "--message":
         print("unsupported fake invocation", file=sys.stderr)
         return 2
     message = sys.argv[5]

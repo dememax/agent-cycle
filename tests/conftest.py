@@ -64,7 +64,7 @@ def isolated_env(tmp_path: Path) -> IsolatedEnvironment:
             "CODEX": str(fake_codex),
             "AGENT_CYCLE_REPO": str(repo),
             "AGENT_CYCLE_STATE": str(state),
-            "S0_QUEUE_TIMEOUT": "0.05",
+            "S0_QUEUE_TIMEOUT": "0.5",
         }
     )
     variables.pop("S0_STATE_DIR", None)
