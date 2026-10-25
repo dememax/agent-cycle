@@ -5,8 +5,8 @@ SPDX-License-Identifier: GPL-3.0-only
 
 # agent-cycle
 
-Fail-closed tooling for a reviewer-implementer pair of AI coding agents.
-One agent drives and reviews; the other implements, one test-first
+Tooling for a reviewer-implementer pair of AI coding agents, whose guards
+fail closed. One agent drives and reviews; the other implements, one test-first
 RED/GREEN pair at a time; a person decides everything that is theirs. The
 driver queues each turn into the implementer's visible chat, audits the
 commands the implementer escalated, snapshots the repositories, and
@@ -25,10 +25,11 @@ repository itself.
   relays messages.
 - **Tests:** `python3.14 -m pytest` characterizes the tools' refusal paths
   with generated logs and a fake Codex CLI only.
-- **The first work package continues:** a fail-closed parser for the
-  audit's escalation detection (under review), the push gate, the remaining
-  lint findings, and project profiles replacing the two environment
-  variables (below). See [AGENTS.md](AGENTS.md).
+- **Done in the first work package:** the tests, and a fail-closed parser
+  for the audit's escalation detection.
+- **Next in it:** the push gate, the remaining lint findings, and project
+  profiles replacing the two environment variables (below). See
+  [AGENTS.md](AGENTS.md).
 
 ## Documentation
 
@@ -46,9 +47,12 @@ practices.
   line or an unexpected structure stops the tool instead of being skipped.
 - **The guards are not a sandbox.** The implementer may escalate only
   `git add` and `git commit` in the project's repository; that rule is an
-  instruction. After each turn the audit lists every escalated command and
-  repository snapshots are compared, so a violation is found after the
-  fact, not prevented. An approved escalation runs outside the
+  instruction. After each turn the audit lists the escalated commands it can see
+  (every tool call whose text names the escalation property; it fails
+  closed on anything there it cannot parse unambiguously; a property name
+  built by concatenation or encoding is outside its scope), and repository
+  snapshots are compared, so a violation is found after the fact, not
+  prevented. An approved escalation runs outside the
   implementer's sandbox.
 
 ## Tools
@@ -57,9 +61,9 @@ practices.
 |---|---|
 | `bin/codex-identify-thread.py` | Identify a newly created visible Codex chat by its first message, fail-closed, and check its settings against the previous chat's |
 | `bin/codex-queue-turn.sh` | Queue one turn into the single active chat, under a lock, refusing on any mismatch; implemented in `codex-queue-turn.py` |
-| `bin/audit-turn.py` | After a turn: list escalated commands, extract the final message, validate it against a result schema |
-| `bin/github-snapshot.sh` | Snapshot every repository's refs and status, before and after a turn |
-| `bin/turn-usage.py` | Per-turn usage of both agents: tokens, context per call, rate-limit windows |
+| `bin/audit-turn.py` | After a turn: list escalated commands, extract the final message, check its top-level keys and enum values against a result schema |
+| `bin/github-snapshot.sh` | Snapshot every local repository's HEAD, refs and status, before and after a turn (best-effort: a failing `git` command is not detected yet) |
+| `bin/turn-usage.py` | Per-turn usage of both agents: tokens, context per call, rate-limit windows (best-effort: malformed lines are skipped) |
 | `bin/codexlog.py` | The strict log reader the tools share |
 | `schemas/*.json` | The implementer's and the reviewer's final-message contracts |
 

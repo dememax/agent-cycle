@@ -11,8 +11,8 @@ agent-cycle
 :Copyright: |copyright|
 :Language: English
 
-Fail-closed tooling for a reviewer-implementer pair of AI coding agents.
-One agent drives and reviews; the other implements, one test-first
+Tooling for a reviewer-implementer pair of AI coding agents, whose guards
+fail closed. One agent drives and reviews; the other implements, one test-first
 RED/GREEN pair at a time; a person decides everything that is theirs.
 Today the driver is Claude Code and the implementer is Codex, in its
 visible VS Code chat. The driver queues each turn into that chat, audits
@@ -47,9 +47,11 @@ Tests
    The tools' refusal paths are characterized by a pytest suite that uses
    only generated logs and a fake Codex CLI.
 
-In progress, the first work package
-   - a fail-closed parser for the audit's escalation detection (under
-     review);
+Done in the first work package
+   The tests, and a fail-closed parser for the audit's escalation
+   detection.
+
+Next in the first work package
    - the push gate, which must pass before anything here is pushed;
    - the remaining Ruff, mypy and ShellCheck findings;
    - project profiles, replacing the two environment variables that

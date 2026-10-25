@@ -32,8 +32,9 @@ Principles
 ************
 
 1. Files and Git are authoritative. What an agent reports is a list of
-   claims to verify, never state. A final message is one JSON object that
-   validates against its schema, or it is rejected.
+   claims to verify, never state. A final message must be one JSON object
+   in its schema's shape; the audit checks part of that mechanically, and
+   the reviewer reads the rest (Contracts, below).
 2. No conclusion on its author's word. The implementer's commits are
    reviewed by the driver, and the driver's plans and verdicts by the
    implementer.
@@ -42,9 +43,12 @@ Principles
 4. Nothing irreversible is automated. No push, tag, release or
    publication happens without the person's explicit decision for that
    occasion.
-5. Fail closed. A tool that meets a malformed log line, an ambiguous
-   candidate, a running turn, a pending submission or a settings mismatch
-   stops with a message. It never guesses.
+5. The guards fail closed. The queue, the identifier and the strict log
+   reader stop with a message on a malformed log line, an ambiguous
+   candidate, a running turn, a pending submission or a settings mismatch;
+   the audit flags whatever it cannot parse within its scope. They never
+   guess. The snapshot and the usage report are best-effort aids, not
+   guards of this kind (Guards, below).
 6. No incident is silent. A usage limit, a power loss, or an audit or
    snapshot anomaly stops the work. The driver reports what it verified,
    and work resumes only on the person's word.
@@ -75,6 +79,12 @@ Every turn ends with exactly one JSON object, and nothing around it.
 A review turn has no ``blocked``: its stop is ``needs_user`` with a
 ``blocker`` finding that names the condition.
 
+The audit checks a subset of the contract mechanically. It takes the span
+from the final message's first ``{`` to its last ``}``, parses it as JSON,
+and checks the schema's top-level required keys, unknown top-level keys and
+top-level enum values. It does not check types, nested fields, or that
+nothing surrounds the object; the reviewer reads the whole result.
+
 ********
 Guards
 ********
@@ -89,12 +99,22 @@ are, not a sandbox:
 1. The prompt allows escalating only ``git add`` and ``git commit``,
    with the project's repository as the working directory. Anything else
    means stop.
-2. The audit (``bin/audit-turn.py``) lists every escalated command
-   after the turn and exits non-zero on any command outside the
-   allowlist, or on an invalid final message.
-3. Snapshots of every repository, before and after the turn
-   (``bin/github-snapshot.sh``), including the remote-tracking refs, so
-   that a push or a change to another repository shows.
+2. The audit (``bin/audit-turn.py``) lists the escalated commands after
+   the turn and exits non-zero on any command outside the allowlist, on
+   anything it cannot parse unambiguously, or on a result that fails its
+   checks. Its scope: every structured function call, and every source
+   tool call whose text contains ``sandbox_permissions`` or
+   ``require_escalated``. A property name built by concatenation or
+   encoding is outside that scope; the prompt forbids it. The audit is the
+   primary detector of a forbidden push.
+3. Snapshots of every local repository, before and after the turn
+   (``bin/github-snapshot.sh``): HEAD, the refs (including remote-tracking
+   refs) and the status. A change to another repository shows, and so does
+   a push that updates a local tracking ref. A push that changes no local
+   ref, such as one of a tag that already exists locally, does not. The
+   remote itself is checked with ``git ls-remote`` at quiet points. The
+   script does not yet detect a failing ``git`` command, which could hide a
+   change on both sides of the comparison.
 4. On the hosting side, a branch ruleset that blocks force pushes and
    deletion of the main branch. It does not block an ordinary push.
 

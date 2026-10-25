@@ -15,9 +15,11 @@ Reproduce, do not trust
 
 1. A report is a list of claims to check. Run the tests, read the diff,
    probe the tool.
-2. Work in your own clone at the exact candidate, never in the author's
-   tree. When HEAD moves during a review, compare trees before carrying a
-   verdict over.
+2. Isolate the review. The driver reviews the implementer's commits in
+   its own clone at the exact candidate, never in the author's tree. The
+   implementer reviews the driver's text read-only, at a named commit in
+   the shared checkout, and changes nothing. When HEAD moves during a
+   review, compare trees before carrying a verdict over.
 3. Check each RED: it fails at the declared tests, as an assertion, for
    the intended reason. A GREEN that edits its RED's assertions must say
    so.
@@ -46,8 +48,8 @@ Probe beyond the tests
 Report
 ********
 
-1. Rank findings: blockers, minor findings, notes. Give each deferred
-   item a target.
+1. Rank findings: blockers, minor findings, recommendations, notes. Give
+   each deferred item a target.
 2. Give each finding evidence the author can reproduce: a command, a
    generated probe, a count.
 3. Own your mistakes in a brief. When a finding comes from your own
@@ -63,6 +65,8 @@ Report
 What evidence may contain
 ***************************
 
-The repository and its records are public. Evidence cites counts, commit
-IDs, finding IDs and generated reproductions, never the content, paths or
-names of private material that a project's own work touched.
+The repository is public; a project's records and run state are not, and
+stay outside it. Only sanitized evidence written for the repository may
+appear here, such as counts, commit IDs, finding IDs and generated
+reproductions. Never the content, paths or names of private material that a
+project's own work touched, and never an excerpt of a real log.

@@ -6,8 +6,9 @@
 Stages
 ########
 
-The process is observed first, then automated, one stage at a time. Only
-S0 and S0+ have run; the later stages are designed, not built.
+The process is observed first, then automated, one stage at a time. S0
+and S0+ have operated, and the S1a gate has been held once; S1b and the
+later stages are designed, not built.
 
 .. list-table::
    :header-rows: 1

@@ -43,10 +43,9 @@ outside the repository; it runs before any push (first work package).
 | `.prettierrc`, `package.json`, `package-lock.json` | Prettier, pinned, for JSON and JSONC |
 | `.vscode/` | VS Code workspace defaults and recommended extensions |
 
-Planned by the first work package: `profiles/` (one file per project, with
-its repository, allowed escalations, validation commands and state
-directory), `tests/` (with a fake CLI and generated logs) and
-`tools/check-public.sh` (the push gate).
+Still planned by the first work package: `profiles/` (one file per project,
+with its repository, allowed escalations, validation commands and state
+directory) and `tools/check-public.sh` (the push gate).
 
 ## File header comment
 

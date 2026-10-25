@@ -14,8 +14,10 @@ project's state directory. One chat's turn runs at a time.
 Selecting the project
 ***********************
 
-Every tool reads two variables. Both must be absolute, and both default to
-check_rst's:
+The tools that read the implementer's logs (the queue, the identifier and
+the audit) take the project from two variables. Both must be absolute, and
+both default to check_rst's. The snapshot and the usage report do not read
+them.
 
 - ``AGENT_CYCLE_REPO``: the repository, which is the chat's expected
   working directory and the only one where commits may be escalated;
@@ -75,9 +77,11 @@ After the turn
    the usage limits while waiting.
 2. Audit: ``bin/audit-turn.py THREAD_LOG START_LINE SCHEMA TURN_DIR``.
    Its exit status is a set of bits: 1 for an escalation outside the
-   allowlist, or one it cannot parse unambiguously; 2 for a final message
-   that is absent or invalid; 4 for a turn that ended on an error, such as
-   a usage limit. It also writes ``final-reply.md`` and ``result.json``.
+   allowlist, or one it cannot parse unambiguously within its scope
+   (:doc:`design`, Guards); 2 for a final message with no JSON object, or
+   whose object fails the top-level checks (:doc:`design`, Contracts); 4
+   for a turn that ended on an error, such as a usage limit. It also writes
+   ``final-reply.md`` and ``result.json``.
 3. Compare ``snapshot-after.txt`` with ``snapshot-before.txt``. Only
    the project's HEAD and status may have changed. The extension's
    ``refs/codex/`` turn checkpoints are counted separately.
@@ -89,7 +93,9 @@ After the turn
 6. Record the turn: times, commits, audit, snapshots, the review's
    findings and verdict.
 7. Usage: ``bin/turn-usage.py CLAUDE_TRANSCRIPT PREVIOUS_TURN_DIR
-   TURN_DIR`` writes ``usage.json`` and prints one table row
+   TURN_DIR`` writes ``usage.json`` into each directory it is given and
+   prints a row for each; the last row is the current turn's. The previous
+   turn's end is where the driver's cycle for the current turn begins
    (:doc:`tokens`).
 
 ********************
