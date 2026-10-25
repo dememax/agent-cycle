@@ -64,7 +64,7 @@ class ScanSpec:
     end_options: bool
 
 
-def git(arguments: Sequence[str]) -> bytes:
+def git(arguments: Sequence[str], *, absent: str | None = None) -> bytes:
     """Run one read-only Git query, replacing every failure with a safe refusal."""
     try:
         result = subprocess.run(
@@ -76,6 +76,8 @@ def git(arguments: Sequence[str]) -> bytes:
         )
     except (OSError, subprocess.SubprocessError) as error:
         raise Refusal("Git command could not run") from error
+    if result.returncode == 1 and absent is not None:
+        raise Refusal(absent)
     if result.returncode != 0:
         raise Refusal("Git command failed")
     return result.stdout
@@ -335,7 +337,14 @@ def parse_pre_push(remote: str) -> tuple[list[ScanSpec], list[str]]:
 
 def configured_email() -> str:
     """Read the repository-local or inherited Git identity allowed by policy."""
-    value = git(["config", "--get", "user.email"]).decode("utf-8", errors="strict").strip()
+    value = (
+        git(
+            ["config", "--get", "user.email"],
+            absent="repository user.email is missing",
+        )
+        .decode("utf-8", errors="strict")
+        .strip()
+    )
     if not value or EMAIL.fullmatch(value) is None:
         raise Refusal("repository user.email is missing or invalid")
     return value
