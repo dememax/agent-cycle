@@ -47,8 +47,9 @@ Principles
    reader stop with a message on a malformed log line, an ambiguous
    candidate, a running turn, a pending submission or a settings mismatch;
    the audit flags whatever it cannot parse within its scope. They never
-   guess. The snapshot and the usage report are best-effort aids, not
-   guards of this kind (Guards, below).
+   guess. The snapshot also fails closed when a repository query is
+   incomplete. The usage report remains a best-effort aid, not a guard of
+   this kind (Guards, below).
 6. No incident is silent. A usage limit, a power loss, or an audit or
    snapshot anomaly stops the work. The driver reports what it verified,
    and work resumes only on the person's word.
@@ -113,9 +114,13 @@ are, not a sandbox:
    refs) and the status. A change to another repository shows, and so does
    a push that updates a local tracking ref. A push that changes no local
    ref, such as one of a tag that already exists locally, does not. The
-   remote itself is checked with ``git ls-remote`` at quiet points. The
-   script does not yet detect a failing ``git`` command, which could hide a
-   change on both sides of the comparison.
+   remote itself is checked with ``git ls-remote`` at quiet points. Each Git
+   query is captured and checked before its result is hashed or counted. If
+   one fails, that repository gets no snapshot line, the diagnostic names
+   the repository and step without relaying Git's output, and the script
+   exits 2 after still printing any other complete repositories. An unborn
+   repository is the narrow exception: ``head=none`` is valid only when
+   ``HEAD`` is a valid symbolic branch ref and that branch does not exist.
 4. On the hosting side, a branch ruleset that blocks force pushes and
    deletion of the main branch. It does not block an ordinary push.
 

@@ -26,10 +26,11 @@ repository itself.
 - **Tests:** `python3.14 -m pytest` characterizes the tools' refusal paths
   with generated logs and a fake Codex CLI only.
 - **Done in the first work package:** the tests, a fail-closed parser for the
-  audit's escalation detection, and the public-content push gate.
-- **Next in it:** make snapshots fail on Git errors, validate complete audit
-  results, resolve the remaining lint findings, and add project profiles that
-  replace the two environment variables (below). See [AGENTS.md](AGENTS.md).
+  audit's escalation detection, the public-content push gate, and fail-closed
+  repository snapshots.
+- **Next in it:** validate complete audit results, resolve the remaining lint
+  findings, and add project profiles that replace the two environment
+  variables (below). See [AGENTS.md](AGENTS.md).
 
 ## Documentation
 
@@ -64,7 +65,7 @@ practices.
 | `bin/codex-identify-thread.py` | Identify a newly created visible Codex chat by its first message, fail-closed, and check its settings against the previous chat's |
 | `bin/codex-queue-turn.sh` | Queue one turn into the single active chat, under a lock, refusing on any mismatch; implemented in `codex-queue-turn.py` |
 | `bin/audit-turn.py` | After a turn: list escalated commands, extract the final message, check its top-level keys and enum values against a result schema |
-| `bin/github-snapshot.sh` | Snapshot the HEAD, refs and status of each repository under `~/github/*/` and `~/github/*/*/`, before and after a turn (best-effort: a failing `git` command is not detected yet) |
+| `bin/github-snapshot.sh` | Snapshot the HEAD, refs and status of each repository under `~/github/*/` and `~/github/*/*/`, failing closed on an incomplete Git query |
 | `bin/turn-usage.py` | Per-turn usage of both agents: tokens, context per call, rate-limit windows (best-effort: malformed lines are skipped) |
 | `bin/codexlog.py` | The strict log reader the tools share |
 | `tools/check-public.sh` | Fail closed on protected patterns in the content and metadata a push would publish |

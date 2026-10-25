@@ -34,7 +34,8 @@ Before the turn
 
 1. Record the pre-state: HEAD and the count of dirty entries of each
    repository concerned.
-2. Take ``snapshot-before.txt`` with ``bin/github-snapshot.sh``.
+2. Take ``snapshot-before.txt`` with ``bin/github-snapshot.sh``. A non-zero
+   exit is an incident; do not queue the turn from an incomplete snapshot.
 3. Write ``prompt.md``. It begins with the driver header
    ``[S0 DRIVER: Claude Code]``, which the queue requires, and holds:
 
@@ -82,13 +83,14 @@ After the turn
    for a turn that ended on an error, such as a usage limit. It always
    writes ``final-reply.md``, and ``result.json`` when the extracted span
    parses as JSON.
-3. Compare ``snapshot-after.txt`` with ``snapshot-before.txt``. Only
-   the project's HEAD and status may have changed. The extension's
-   ``refs/codex/`` turn checkpoints are counted separately.
-4. Any non-zero audit, or any unexpected snapshot change, is an
-   incident. Stop and tell the person. The driver may establish the
-   facts first, for example that a flagged call only wrote a test fixture,
-   but the person decides how work resumes.
+3. Require ``bin/github-snapshot.sh`` to exit zero, then compare
+   ``snapshot-after.txt`` with ``snapshot-before.txt``. Only the project's
+   HEAD and status may have changed. The extension's ``refs/codex/`` turn
+   checkpoints are counted separately.
+4. Any non-zero audit or snapshot, or any unexpected snapshot change, is an
+   incident. Stop and tell the person. The driver may establish the facts
+   first, for example that a flagged call only wrote a test fixture, but the
+   person decides how work resumes.
 5. Review the result by reproducing it (:doc:`review`).
 6. Record the turn: times, commits, audit, snapshots, the review's
    findings and verdict.
