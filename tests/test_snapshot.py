@@ -6,11 +6,15 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 from typing import TYPE_CHECKING
+
+import pytest
 
 from .conftest import ROOT, IsolatedEnvironment
 
 if TYPE_CHECKING:
+    import subprocess
     from collections.abc import Sequence
     from pathlib import Path
 
@@ -55,6 +59,144 @@ def snapshot(isolated_env: IsolatedEnvironment) -> dict[str, dict[str, str]]:
         values = match.groupdict()
         parsed[values.pop("path")] = values
     return parsed
+
+
+def failing_git(isolated_env: IsolatedEnvironment) -> Path:
+    """Put a generated selectively failing Git delegate in the fake home."""
+    directory = isolated_env.home / "fake-bin"
+    directory.mkdir()
+    wrapper = directory / "git"
+    wrapper.write_text(
+        """#!/usr/bin/env python3.14
+import os
+import sys
+
+arguments = sys.argv[1:]
+repository = arguments[arguments.index("-C") + 1] if "-C" in arguments else ""
+step = ""
+if "rev-parse" in arguments and any(argument.startswith("HEAD") for argument in arguments):
+    step = "HEAD"
+elif "for-each-ref" in arguments and "refs/codex" in arguments:
+    step = "refs/codex"
+elif "for-each-ref" in arguments:
+    step = "refs"
+elif "status" in arguments:
+    step = "status"
+if step == os.environ.get("SNAPSHOT_FAIL_STEP") and repository == os.environ.get("SNAPSHOT_FAIL_REPO"):
+    sys.stderr.write(os.environ["SNAPSHOT_GIT_ERROR"] + "\\n")
+    raise SystemExit(73)
+real_git = os.environ["SNAPSHOT_REAL_GIT"]
+os.execv(real_git, [real_git, *arguments])
+""",
+        encoding="utf-8",
+    )
+    wrapper.chmod(0o755)
+    return wrapper
+
+
+def snapshot_result(
+    isolated_env: IsolatedEnvironment,
+    *,
+    failing_repository: Path | None = None,
+    failing_step: str | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run a snapshot, optionally injecting one repository-local Git failure."""
+    extra_env: dict[str, str] = {}
+    if failing_repository is not None and failing_step is not None:
+        wrapper = failing_git(isolated_env)
+        real_git = shutil.which("git")
+        assert real_git is not None
+        extra_env = {
+            "PATH": str(wrapper.parent) + os.pathsep + isolated_env.variables["PATH"],
+            "SNAPSHOT_REAL_GIT": real_git,
+            "SNAPSHOT_FAIL_REPO": str(failing_repository),
+            "SNAPSHOT_FAIL_STEP": failing_step,
+            "SNAPSHOT_GIT_ERROR": "generated Git diagnostic that must stay hidden",
+        }
+    return isolated_env.run([SNAPSHOT], extra_env=extra_env)
+
+
+@pytest.mark.parametrize(
+    ("failing_step", "diagnostic_step"),
+    [
+        ("HEAD", "HEAD"),
+        ("refs", "refs"),
+        ("refs/codex", "refs/codex"),
+        ("status", "status"),
+    ],
+)
+def test_snapshot_refuses_each_git_failure_without_echoing_git_output(
+    isolated_env: IsolatedEnvironment,
+    failing_step: str,
+    diagnostic_step: str,
+) -> None:
+    """Every Git query is checked before its result contributes to a line."""
+    repo = isolated_env.home / "github" / "failing"
+    initialize(isolated_env, repo, commit=True)
+
+    result = snapshot_result(
+        isolated_env,
+        failing_repository=repo,
+        failing_step=failing_step,
+    )
+
+    assert result.returncode == 2
+    assert str(repo) in result.stderr
+    assert diagnostic_step in result.stderr
+    assert "generated Git diagnostic" not in result.stdout + result.stderr
+    assert str(repo) not in result.stdout
+
+
+def test_snapshot_accepts_an_unborn_symbolic_branch(isolated_env: IsolatedEnvironment) -> None:
+    """A valid symbolic HEAD whose branch does not exist is an empty repository."""
+    repo = isolated_env.home / "github" / "unborn"
+    initialize(isolated_env, repo, commit=False)
+
+    result = snapshot_result(isolated_env)
+
+    assert result.returncode == 0, result.stderr
+    match = LINE.fullmatch(result.stdout.strip())
+    assert match is not None
+    assert match.group("path") == str(repo)
+    assert match.group("head") == "none"
+
+
+def test_snapshot_refuses_an_unresolvable_detached_head(isolated_env: IsolatedEnvironment) -> None:
+    """An object name missing from the repository is not an unborn branch."""
+    repo = isolated_env.home / "github" / "broken-head"
+    initialize(isolated_env, repo, commit=True)
+    (repo / ".git" / "HEAD").write_text("f" * 40 + "\n", encoding="ascii")
+
+    result = snapshot_result(isolated_env)
+
+    assert result.returncode == 2
+    assert str(repo) in result.stderr
+    assert "HEAD" in result.stderr
+    assert str(repo) not in result.stdout
+
+
+def test_snapshot_keeps_good_repository_line_when_another_fails(
+    isolated_env: IsolatedEnvironment,
+) -> None:
+    """One failed repository sets the exit status without suppressing complete peers."""
+    good = isolated_env.home / "github" / "good"
+    bad = isolated_env.home / "github" / "bad"
+    initialize(isolated_env, good, commit=True)
+    initialize(isolated_env, bad, commit=True)
+    baseline = snapshot_result(isolated_env)
+    assert baseline.returncode == 0, baseline.stderr
+    good_line = next(line for line in baseline.stdout.splitlines() if line.startswith(str(good) + " "))
+
+    result = snapshot_result(
+        isolated_env,
+        failing_repository=bad,
+        failing_step="status",
+    )
+
+    assert result.returncode == 2
+    assert good_line in result.stdout.splitlines()
+    assert not any(line.startswith(str(bad) + " ") for line in result.stdout.splitlines())
+    assert str(bad) in result.stderr
 
 
 def test_snapshot_format_hashes_depth_and_read_only_index(
