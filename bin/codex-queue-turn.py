@@ -6,6 +6,10 @@
 
 Usage: codex-queue-turn.py TURN_DIR
 
+The state directory (active-codex-thread.json, queue.lock, pending.json) is
+the selected project's, codexlog.STATE_DIR (AGENT_CYCLE_STATE); S0_STATE_DIR,
+the older name, overrides it when set.
+
 Holds an exclusive lock (queue.lock) from the checks until Codex has
 visibly started the new turn, so two drivers cannot both queue. Refuses
 (exit 1) unless all of these hold:

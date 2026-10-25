@@ -65,11 +65,13 @@ variables select the project; both default to check_rst's:
 | `AGENT_CYCLE_REPO` | `~/github/check_rst` | the chat's expected working directory, and the only repository where commits may be escalated |
 | `AGENT_CYCLE_STATE` | `~/.local/state/agent-cycle/check_rst` | the active-chat record and the queue lock |
 
-Both must be absolute. The queue refuses an active-chat record that belongs
-to another repository. A project's first chat is identified against a chat
-of another project: its settings are compared after moving that chat's
-repository paths to the selected repository, and must otherwise be
-identical. Project profiles replace these variables later.
+Both must be absolute. For the queue alone, `S0_STATE_DIR`, the older name,
+overrides `AGENT_CYCLE_STATE` when it is set; the identifier ignores it.
+The queue refuses an active-chat record that belongs to another
+repository. A project's first chat is identified against a chat of another
+project: its settings are compared after moving that chat's repository
+paths to the selected repository, and must otherwise be identical. Project
+profiles replace these variables later.
 
 ## License
 
