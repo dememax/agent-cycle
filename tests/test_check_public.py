@@ -4,6 +4,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import shutil
+import stat
 import subprocess
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
@@ -17,7 +20,9 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 CHECK_PUBLIC = ROOT / "tools" / "check-public.sh"
+INSTALL_GATE = ROOT / "tools" / "install-gate.sh"
 ZERO_SHA = "0" * 40
+INSTALLED_FILES = ("check-public.sh", "check-public.py", "pre-push")
 
 
 def invented_value() -> str:
@@ -138,6 +143,145 @@ def repository(tmp_path: Path, isolated_env: IsolatedEnvironment) -> Repository:
 def combined_output(result: subprocess.CompletedProcess[str]) -> str:
     """Combine both output channels for disclosure assertions."""
     return result.stdout + result.stderr
+
+
+def commit_gate_package(repository: Repository) -> str:
+    """Copy the repository's gate and installer into a generated commit."""
+    tools = repository.path / "tools"
+    tools.mkdir()
+    for name in (*INSTALLED_FILES, "install-gate.sh", "install-gate.py"):
+        shutil.copy2(ROOT / "tools" / name, tools / name)
+    repository.git(["add", "tools"])
+    repository.git(["commit", "-q", "-m", "generated gate package"])
+    return repository.git(["rev-parse", "HEAD"]).stdout.strip()
+
+
+def run_installer(
+    repository: Repository,
+    destination: Path,
+    *arguments: str,
+) -> subprocess.CompletedProcess[str]:
+    """Run the generated repository's installer without touching Git configuration."""
+    return subprocess.run(
+        [repository.path / "tools" / "install-gate.sh", *arguments, str(destination)],
+        cwd=repository.path,
+        env=repository.environment,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+
+
+def test_installer_uses_committed_files_and_writes_integrity_metadata(
+    repository: Repository,
+    tmp_path: Path,
+) -> None:
+    """Installation is pinned to a commit even when the work tree differs."""
+    revision = commit_gate_package(repository)
+    work_tree_hook = repository.path / "tools" / "pre-push"
+    work_tree_hook.write_text("generated work-tree mutation\n", encoding="utf-8")
+    destination = tmp_path / "installed-gate"
+
+    result = run_installer(repository, destination, "--rev", "HEAD")
+
+    assert result.returncode == 0, combined_output(result)
+    assert result.stdout == f"git config core.hooksPath {destination}\n"
+    assert repository.git(["config", "--get", "core.hooksPath"], check=False).returncode == 1
+    assert (destination / "REVISION").read_text(encoding="ascii") == revision + "\n"
+    sums = (destination / "SHA256SUMS").read_text(encoding="ascii").splitlines()
+    assert len(sums) == len(INSTALLED_FILES)
+    for name, line in zip(INSTALLED_FILES, sums, strict=True):
+        installed = destination / name
+        expected = repository.git(["show", f"{revision}:tools/{name}"]).stdout
+        assert installed.read_text(encoding="utf-8") == expected
+        assert installed.read_text(encoding="utf-8") != work_tree_hook.read_text(encoding="utf-8") or name != "pre-push"
+        assert line == f"{hashlib.sha256(installed.read_bytes()).hexdigest()}  {name}"
+        assert installed.stat().st_mode & stat.S_IXUSR
+
+
+def test_installed_hook_guards_checkout_without_tools(
+    repository: Repository,
+    tmp_path: Path,
+) -> None:
+    """A pinned hook outside the checkout guards branches that contain no gate files."""
+    commit_gate_package(repository)
+    destination = tmp_path / "installed-gate"
+    installed = run_installer(repository, destination)
+    assert installed.returncode == 0, combined_output(installed)
+
+    remote = tmp_path / "remote.git"
+    init_remote = subprocess.run(
+        ["git", "init", "--bare", "-q", remote],
+        env=repository.environment,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert init_remote.returncode == 0, init_remote.stderr
+
+    checkout_path = tmp_path / "checkout-without-tools"
+    checkout_path.mkdir()
+    checkout = Repository(
+        checkout_path,
+        repository.deny_list,
+        repository.environment | {"AGENT_CYCLE_DENY_LIST": str(repository.deny_list)},
+        repository.configured_email,
+    )
+    checkout.git(["init", "-q", "-b", "main"])
+    checkout.git(["config", "user.name", "Generated Author"])
+    checkout.git(["config", "user.email", checkout.configured_email])
+    checkout.git(["config", "core.hooksPath", str(destination)])
+    checkout.git(["remote", "add", "origin", str(remote)])
+    clean_commit = checkout.commit("clean.txt", "generated clean content\n")
+    assert not (checkout.path / "tools").exists()
+
+    clean_push = checkout.git(["push", "-q", "-u", "origin", "main"], check=False)
+
+    assert clean_push.returncode == 0, clean_push.stderr
+
+    value = invented_value()
+    checkout.write_deny_list(f"fixed-i:{value}")
+    checkout.commit("denied.txt", value + "\n")
+
+    denied_push = checkout.git(["push", "-q", "origin", "main"], check=False)
+
+    assert denied_push.returncode != 0
+    assert value not in combined_output(denied_push)
+    remote_head = subprocess.run(
+        ["git", "--git-dir", remote, "rev-parse", "refs/heads/main"],
+        env=repository.environment,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert remote_head.returncode == 0, remote_head.stderr
+    assert remote_head.stdout.strip() == clean_commit
+
+
+@pytest.mark.parametrize("refusal", ["nonempty", "inside", "revision"])
+def test_installer_refuses_unsafe_destination_or_revision(
+    repository: Repository,
+    tmp_path: Path,
+    refusal: str,
+) -> None:
+    """The installer refuses every destination and revision ambiguity."""
+    commit_gate_package(repository)
+    destination = tmp_path / "installed-gate"
+    arguments: tuple[str, ...] = ()
+    if refusal == "nonempty":
+        destination.mkdir()
+        (destination / "existing").write_text("generated\n", encoding="utf-8")
+    elif refusal == "inside":
+        destination = repository.path / "installed-gate"
+    else:
+        arguments = ("--rev", "generated-missing-revision")
+
+    result = run_installer(repository, destination, *arguments)
+
+    assert result.returncode == 2
 
 
 def test_clean_single_revision_returns_zero(repository: Repository) -> None:
