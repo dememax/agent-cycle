@@ -384,20 +384,22 @@ def main() -> int:
         start = int(start_path.read_text(encoding="utf-8").strip())
     except OSError, ValueError:
         parser.error(f"cannot read current turn log starting line: {start_path}")
-    print(
-        "| turn | Codex 5h % | Codex week % | Codex tokens in / cached / out | Codex median context/call | Claude tokens in+cache-write / cache-read / out (msgs) | Claude median context/msg |"
-    )
-    print("|---|---|---|---|---|---|---|")
     started = local_time(turn / "started")
     finished = local_time(turn / "finished")
-    codex = codex_usage(log, start)
+    try:
+        codex = codex_usage(log, start)
+    except OSError, UnicodeError:
+        parser.error(f"cannot read rollout log: {log}")
     since = previous_end or started
     source = "previous" if previous is not None else "started"
-    claude = claude_usage(
-        transcript,
-        since.astimezone(UTC) if since else None,
-        finished.astimezone(UTC) if finished else None,
-    )
+    try:
+        claude = claude_usage(
+            transcript,
+            since.astimezone(UTC) if since else None,
+            finished.astimezone(UTC) if finished else None,
+        )
+    except OSError, UnicodeError:
+        parser.error(f"cannot read Claude Code transcript: {transcript}")
     renewal = renewal_facts(turn, previous, log, start, codex, claude)
     result = {
         "turn": turn.name,
@@ -415,6 +417,10 @@ def main() -> int:
     b = cast("int | float | None", codex["five_hour_before"])
     a = cast("int | float | None", codex["five_hour_after"])
     reset = " (window reset)" if b is not None and a is not None and a < b else ""
+    print(
+        "| turn | Codex 5h % | Codex week % | Codex tokens in / cached / out | Codex median context/call | Claude tokens in+cache-write / cache-read / out (msgs) | Claude median context/msg |"
+    )
+    print("|---|---|---|---|---|---|---|")
     print(
         f"| {turn.name} | {fmt(b)} → {fmt(a)}{reset}"
         f" | {fmt(codex['weekly_before'])} → {fmt(codex['weekly_after'])}"
