@@ -5,9 +5,16 @@
 from __future__ import annotations
 
 import datetime
+import tomllib
+from pathlib import Path
 
-project = "agent-cycle"
-author = "Maxime P. DEMENTYEV"
+with (Path(__file__).parents[1] / "pyproject.toml").open("rb") as stream:
+    metadata = tomllib.load(stream)["project"]
+
+project = metadata["name"]
+version = metadata["version"]
+release = version
+author = metadata["authors"][0]["name"]
 current_year = datetime.datetime.now(tz=datetime.UTC).year
 copyright_years = "2026" if current_year == 2026 else f"2026-{current_year}"
 copyright = f"{copyright_years}, {author}"

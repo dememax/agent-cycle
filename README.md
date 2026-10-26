@@ -21,6 +21,7 @@ repository itself.
 
 ## Status
 
+- **Release:** version `0.1.0`; the first work package is complete.
 - **In use:** stage "S0+": the driver queues every turn itself, and nobody
   relays messages.
 - **Tests:** `python3.14 -m pytest` characterizes the tools' refusal paths
@@ -32,7 +33,6 @@ repository itself.
   usage and renewal facts (`USAGE-1`); and the remaining lint findings
   (`LINT-1`). Project profiles now replace the old repository and state
   environment variables (below).
-- **Next:** release `v0.1.0`. See [AGENTS.md](AGENTS.md).
 
 ## Documentation
 

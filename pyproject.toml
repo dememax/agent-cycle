@@ -5,6 +5,14 @@
 # The rules are check_rst's and check_formatting's common set, so the three
 # repositories format and lint Python alike.
 
+[project]
+name = "agent-cycle"
+version = "0.1.0"
+description = "Tools for a reviewer-implementer pair of AI agents."
+requires-python = ">=3.14"
+license = "GPL-3.0-only"
+authors = [{ name = "Maxime P. DEMENTYEV" }]
+
 [tool.ruff]
 line-length = 120
 target-version = "py314"

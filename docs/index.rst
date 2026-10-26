@@ -34,10 +34,14 @@ the second is this repository itself.
    renewal
    tokens
    review
+   releasing
 
 ********
 Status
 ********
+
+Release
+   Version |release|; the first work package is complete.
 
 In use
    Stage S0+ (:doc:`stages`). The driver queues every turn itself; nobody
@@ -52,6 +56,3 @@ Done in the first work package
    validation; the public-content push gate; fail-closed repository
    snapshots; usage and renewal facts; the initial lint debt; and project
    profiles.
-
-Next in the first work package
-   Release ``v0.1.0``.
