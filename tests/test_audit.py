@@ -317,6 +317,33 @@ def test_result_rejects_non_finite_number(
 
 
 @pytest.mark.parametrize(
+    "final",
+    [
+        '{"status":' + "[" * 200_000 + "null" + "]" * 200_000 + "}",
+        '{"status":' + "9" * 5_000 + "}",
+    ],
+    ids=["deep-nesting", "integer-limit"],
+)
+def test_result_parser_failures_set_bit_two(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    final: str,
+) -> None:
+    """Parser resource-limit failures remain invalid results rather than crashes."""
+    code, stdout, stderr, output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(final=final),
+    )
+
+    assert code == 2
+    assert "result: INVALID:" in stdout
+    assert "parse" in stdout.lower()
+    assert "Traceback" not in stderr
+    assert not (output / "result.json").exists()
+
+
+@pytest.mark.parametrize(
     ("change", "path"),
     [
         ({"plan_revision": "four"}, "plan_revision"),
@@ -419,6 +446,38 @@ def test_result_refuses_an_unsupported_schema_keyword(
     assert "minimum" in stdout
     assert "properties.status" in stdout
     assert (output / "result.json").exists()
+
+
+def test_schema_and_final_message_errors_are_reported_together(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """Schema preflight is independent of whether the final message parses."""
+    schema = tmp_path / "unsupported-and-invalid-schema.json"
+    schema.write_text(
+        json.dumps(
+            {
+                "type": "object",
+                "properties": {"status": {"type": "string", "minimum": 1}},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    code, stdout, _stderr, output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(final="generated non-JSON final message"),
+        schema_path=schema,
+    )
+
+    result_line = next(line for line in stdout.splitlines() if line.startswith("result:"))
+    assert code == 2
+    assert "minimum" in result_line
+    assert "properties.status" in result_line
+    assert "JSON does not parse" in result_line
+    assert "; " in result_line
+    assert not (output / "result.json").exists()
 
 
 @pytest.mark.parametrize(
