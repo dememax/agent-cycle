@@ -307,6 +307,51 @@ def test_unreadable_previous_turn_is_a_usage_error(
     assert not (current / "usage.json").exists()
 
 
+@pytest.mark.parametrize(
+    "broken_input",
+    [
+        "missing-log-path",
+        "unreadable-log-path",
+        "missing-start-line",
+        "unreadable-start-line",
+        "noninteger-start-line",
+    ],
+)
+def test_unusable_current_turn_log_evidence_is_a_usage_error(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    broken_input: str,
+) -> None:
+    """Required current-turn log evidence is validated before any output."""
+    log = tmp_path / "rollout-generated.jsonl"
+    turn = tmp_path / "turn-current"
+    make_turn(
+        turn,
+        log,
+        make_codex_log(log),
+        started="2040-01-02 10:00:00 +0000",
+        finished="2040-01-02 10:10:00 +0000",
+    )
+    transcript = tmp_path / "claude-generated.jsonl"
+    write_json_lines(transcript, [])
+    evidence_name = "thread-log-path" if broken_input.endswith("log-path") else "thread-log-lines-before"
+    evidence = turn / evidence_name
+    if broken_input.startswith("missing"):
+        evidence.unlink()
+    elif broken_input.startswith("unreadable"):
+        evidence.unlink()
+        evidence.mkdir()
+    else:
+        evidence.write_text("not an integer\n", encoding="utf-8")
+
+    result = isolated_env.run([PYTHON, "-I", USAGE, transcript, turn])
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert str(evidence) in result.stderr
+    assert not (turn / "usage.json").exists()
+
+
 def test_renewal_compaction_buckets_and_third_compaction_trigger(
     isolated_env: IsolatedEnvironment,
     tmp_path: Path,
