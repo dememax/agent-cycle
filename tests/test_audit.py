@@ -367,8 +367,9 @@ def test_exact_extra_allow_authorizes_amend_only_without_metacharacters(
         ("git add generated-a generated-b && git commit -F /tmp/generated-message", "repo"),
         ("git -C {repo}/ commit -F generated", "other"),
         ("git commit -m 'text containing | and $HOME'", "repo"),
+        ("git commit -m 'text about --amend'", "repo"),
     ],
-    ids=["chain", "explicit-repository", "single-quoted-metacharacters"],
+    ids=["chain", "explicit-repository", "single-quoted-metacharacters", "amend-in-message"],
 )
 def test_shell_tokenizer_accepts_only_legitimate_forms(
     isolated_env: IsolatedEnvironment,

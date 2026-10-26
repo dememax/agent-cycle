@@ -94,6 +94,9 @@ After the turn
    for a turn that ended on an error, such as a usage limit. It always
    writes ``final-reply.md``, and ``result.json`` only when the complete
    message parses as one JSON object.
+   Commands are tokenized as shell syntax; other operators, redirections and
+   expansions are flagged, and ``git commit --amend`` needs the turn's exact
+   authorization.
 3. Require ``bin/github-snapshot.sh`` to exit zero, then compare
    ``snapshot-after.txt`` with ``snapshot-before.txt``. Only the project's
    HEAD and status may have changed. The extension's ``refs/codex/`` turn

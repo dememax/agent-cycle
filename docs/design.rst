@@ -115,7 +115,9 @@ are, not a sandbox:
    tool call whose text contains ``sandbox_permissions`` or
    ``require_escalated``. A property name built by concatenation or
    encoding is outside that scope; the prompt forbids it. The audit is the
-   primary detector of a forbidden push.
+   primary detector of a forbidden push. Commands are tokenized as shell
+   syntax; other operators, redirections and expansions are flagged, and
+   ``git commit --amend`` needs the turn's exact authorization.
 3. Snapshots of each repository under ``~/github/*/`` and
    ``~/github/*/*/``, before and after the turn
    (``bin/github-snapshot.sh``): HEAD, the refs (including remote-tracking

@@ -26,6 +26,7 @@ is outside the audit's detectable scope and must not be used.
 import json
 import os
 import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -41,14 +42,9 @@ except codexlog.ProfileError as error:
 
 log, start, schema_path, out = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
 REPO = str(PROFILE.repository)
-ALLOW = re.compile(r"^git(\s+-C\s+" + re.escape(REPO) + r"/?)?\s+(add|commit)\b")
 # A per-turn extension, decided by the user for one turn only, passed as a
 # regular expression in AUDIT_EXTRA_ALLOW (e.g. the prescribed release tag).
 EXTRA = re.compile(os.environ["AUDIT_EXTRA_ALLOW"]) if os.environ.get("AUDIT_EXTRA_ALLOW") else None
-
-
-def allowed(part: str) -> bool:
-    return bool(ALLOW.match(part) or (EXTRA and EXTRA.fullmatch(part)))
 
 
 class ParseFailure(ValueError):
@@ -57,6 +53,124 @@ class ParseFailure(ValueError):
 
 Token = tuple[str, str, int]
 Escalation = tuple[str, str]
+ShellCommand = tuple[str, list[str]]
+
+
+class ShellParseFailure(ValueError):
+    """Escalated shell text is outside the deliberately small grammar."""
+
+
+def shell_commands(command: str) -> list[ShellCommand]:
+    """Split and tokenize safe simple commands without executing expansions."""
+    parts: list[str] = []
+    start = 0
+    index = 0
+    quote: str | None = None
+    while index < len(command):
+        character = command[index]
+        if quote == "'":
+            if character == "'":
+                quote = None
+            index += 1
+            continue
+        if character in "$`":
+            raise ShellParseFailure("shell expansion")
+        if quote == '"':
+            if character == '"':
+                quote = None
+                index += 1
+            elif character == "\\":
+                if index + 1 >= len(command) or command[index + 1] in "\r\n$`":
+                    raise ShellParseFailure("unsafe or incomplete escape")
+                index += 2
+            else:
+                index += 1
+            continue
+        if character in "'\"":
+            quote = character
+            index += 1
+        elif character in "\r\n":
+            raise ShellParseFailure("control character")
+        elif character == "\\":
+            if index + 1 >= len(command) or command[index + 1] in "\r\n$`":
+                raise ShellParseFailure("unsafe or incomplete escape")
+            index += 2
+        elif command.startswith(("&&", "||"), index):
+            part = command[start:index].strip()
+            if not part:
+                raise ShellParseFailure("empty simple command")
+            parts.append(part)
+            index += 2
+            start = index
+        elif character == ";":
+            part = command[start:index].strip()
+            if not part:
+                raise ShellParseFailure("empty simple command")
+            parts.append(part)
+            index += 1
+            start = index
+        elif character in "|&<>()":
+            raise ShellParseFailure("unsupported shell operator")
+        else:
+            index += 1
+    if quote is not None:
+        raise ShellParseFailure("unterminated quote")
+    part = command[start:].strip()
+    if not part:
+        raise ShellParseFailure("empty simple command")
+    parts.append(part)
+
+    commands: list[ShellCommand] = []
+    for part in parts:
+        try:
+            arguments = shlex.split(part, comments=False, posix=True)
+        except ValueError as error:
+            raise ShellParseFailure(str(error)) from error
+        if not arguments:
+            raise ShellParseFailure("empty simple command")
+        commands.append((part, arguments))
+    return commands
+
+
+def selects_repository(arguments: list[str]) -> bool:
+    """Return whether a tokenized Git command explicitly selects this repository."""
+    return len(arguments) >= 3 and arguments[0] == "git" and arguments[1] == "-C" and arguments[2] in (REPO, f"{REPO}/")
+
+
+def simple_command_allowed(text: str, arguments: list[str], *, in_repo: bool) -> bool:
+    """Apply the exact escalation grammar to one tokenized simple command."""
+    explicit_repository = selects_repository(arguments)
+    if not in_repo and not explicit_repository:
+        return False
+    if EXTRA and EXTRA.fullmatch(text):
+        return True
+    index = 1
+    if not arguments or arguments[0] != "git":
+        return False
+    if len(arguments) > 1 and arguments[1] == "-C":
+        if not explicit_repository:
+            return False
+        index = 3
+    if len(arguments) <= index + 1 or arguments[index] not in ("add", "commit"):
+        return False
+    return arguments[index] != "commit" or not any(
+        argument in ("--am", "--ame", "--amen", "--amend") for argument in arguments[index + 1 :]
+    )
+
+
+def escalation_allowed(command: str, workdir: str) -> bool:
+    """Fail closed unless every shell command is safe and explicitly allowed."""
+    try:
+        commands = shell_commands(command)
+    except ShellParseFailure:
+        return False
+    in_repo = workdir.rstrip("/") == REPO
+    return all(simple_command_allowed(text, arguments, in_repo=in_repo) for text, arguments in commands)
+
+
+def display_command(command: str) -> str:
+    """Escape controls so one escalation always occupies one output line."""
+    return json.dumps(command, ensure_ascii=False)[1:-1]
 
 
 def read_string(source: str, start: int, quote: str) -> tuple[str, int]:
@@ -425,10 +539,9 @@ for line in log_lines:
             print(f"{e.get('timestamp', '')[11:19]} ESCALATION BAD [] {shown[:180]}")
             esc_bad.append(shown)
         for cmd, workdir in escalations:
-            in_repo = workdir.rstrip("/") == REPO
-            parts = [x.strip() for x in re.split(r"&&|;|\|\|", cmd) if x.strip()]
-            ok = bool(cmd) and all(allowed(x) and (in_repo or f"-C {REPO}" in x) for x in parts)
-            print(f"{e.get('timestamp', '')[11:19]} ESCALATION {'ok ' if ok else 'BAD'} [{workdir}] {cmd[:180]}")
+            ok = escalation_allowed(cmd, workdir)
+            shown = display_command(cmd)
+            print(f"{e.get('timestamp', '')[11:19]} ESCALATION {'ok ' if ok else 'BAD'} [{workdir}] {shown[:180]}")
             if not ok:
                 esc_bad.append(cmd)
     if p.get("type") == "task_complete":
