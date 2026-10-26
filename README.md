@@ -25,12 +25,14 @@ repository itself.
   relays messages.
 - **Tests:** `python3.14 -m pytest` characterizes the tools' refusal paths
   with generated logs and a fake Codex CLI only.
-- **Done in the first work package:** the tests, a fail-closed parser for the
-  audit's escalation detection, the public-content push gate, and fail-closed
-  repository snapshots.
-- **Next in it:** validate complete audit results, resolve the remaining lint
-  findings, and add project profiles that replace the two environment
-  variables (below). See [AGENTS.md](AGENTS.md).
+- **Done in the first work package:** the tests; the audit's fail-closed
+  escalation parser and complete result validation (`AUDIT-2`); the
+  public-content push gate; fail-closed repository snapshots, including signal
+  handling (`SNAP1/m1`); and usage and renewal facts (`USAGE-1`).
+- **Next in it:** approve the gate's clean-pass evidence (`GATE-2`), resolve
+  the remaining lint findings, add project profiles that replace the two
+  environment variables (below), and release `v0.1.0`. See
+  [AGENTS.md](AGENTS.md).
 
 ## Documentation
 
@@ -146,10 +148,14 @@ Exit status 0 means the complete requested scan was clean, 1 means it found a
 protected pattern, and 2 means it refused to scan. Refusals include a missing,
 unreadable or empty deny-list; an unknown kind, empty value or invalid regular
 expression; an invalid revision; a failed Git command; and malformed pre-push
-input. Findings identify the commit, item kind, rule and location without
-printing the matching text or deny-list value. There is no inline exception or
-suppression mechanism: fix a false positive in the text or in the private
-deny-list.
+input. A clean scan prints one line to standard error with the number of
+commits and scanned items and the installed gate revision. A scanned item is a
+commit message, identity, changed path, blob or tag. The revision is `unknown`
+when the scanner is not installed beside a valid `REVISION` file. Findings go
+to standard output and identify the commit, item kind, rule and location
+without printing the matching text or deny-list value. Refusals go to standard
+error. There is no inline exception or suppression mechanism: fix a false
+positive in the text or in the private deny-list.
 
 Blob bytes are decoded as UTF-8 while preserving undecodable bytes before the
 text patterns run. The scanner does not decode UTF-16, decompress content, or
