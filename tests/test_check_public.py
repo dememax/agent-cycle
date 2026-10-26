@@ -102,13 +102,14 @@ class Repository:
         *arguments: str,
         input_text: str | None = None,
         deny_list: Path | None = None,
+        executable: Path = CHECK_PUBLIC,
     ) -> subprocess.CompletedProcess[str]:
         """Run the gate with its deny-list redirected into the fake home."""
         environment = self.environment | {
             "AGENT_CYCLE_DENY_LIST": str(deny_list or self.deny_list),
         }
         return subprocess.run(
-            [CHECK_PUBLIC, *arguments],
+            [executable, *arguments],
             cwd=self.path,
             env=environment,
             input=input_text,
@@ -289,7 +290,39 @@ def test_clean_single_revision_returns_zero(repository: Repository) -> None:
     result = repository.gate("HEAD")
 
     assert result.returncode == 0, combined_output(result)
-    assert combined_output(result) == ""
+    assert result.stdout == ""
+    assert result.stderr == "check-public: clean: commits=1 scanned-items=5 revision unknown\n"
+
+
+def test_clean_installed_gate_reports_its_revision(repository: Repository, tmp_path: Path) -> None:
+    """A clean installed gate identifies the exact committed scanner package."""
+    revision = commit_gate_package(repository)
+    destination = tmp_path / "installed-gate"
+    installed = run_installer(repository, destination)
+    assert installed.returncode == 0, combined_output(installed)
+    root = repository.git(["rev-list", "--max-parents=0", "HEAD"]).stdout.strip()
+
+    result = repository.gate(root, executable=destination / "check-public.sh")
+
+    assert result.returncode == 0, combined_output(result)
+    assert result.stdout == ""
+    assert result.stderr == f"check-public: clean: commits=1 scanned-items=5 revision {revision}\n"
+
+
+def test_clean_installed_gate_ignores_malformed_revision(repository: Repository, tmp_path: Path) -> None:
+    """Untrusted or damaged installation metadata does not make the scan refuse."""
+    commit_gate_package(repository)
+    destination = tmp_path / "installed-gate"
+    installed = run_installer(repository, destination)
+    assert installed.returncode == 0, combined_output(installed)
+    (destination / "REVISION").write_text("generated malformed revision\n", encoding="ascii")
+    root = repository.git(["rev-list", "--max-parents=0", "HEAD"]).stdout.strip()
+
+    result = repository.gate(root, executable=destination / "check-public.sh")
+
+    assert result.returncode == 0, combined_output(result)
+    assert result.stdout == ""
+    assert result.stderr == "check-public: clean: commits=1 scanned-items=5 revision unknown\n"
 
 
 def test_blob_added_then_removed_is_still_scanned(repository: Repository) -> None:
@@ -306,6 +339,7 @@ def test_blob_added_then_removed_is_still_scanned(repository: Repository) -> Non
     assert "path=transient.txt" in result.stdout
     assert "line=1" in result.stdout
     assert "rule=deny-list entry 1" in result.stdout
+    assert "check-public: clean:" not in result.stderr
 
 
 @pytest.mark.parametrize("location", ["message", "path"])
@@ -490,6 +524,7 @@ def test_missing_deny_list_fails_closed(repository: Repository) -> None:
     result = repository.gate("HEAD", deny_list=missing)
 
     assert result.returncode == 2
+    assert "check-public: clean:" not in result.stderr
 
 
 def test_unresolvable_range_fails_closed(repository: Repository) -> None:
