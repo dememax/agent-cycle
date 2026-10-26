@@ -20,16 +20,18 @@ The tracked ``profiles/check_rst.toml`` and ``profiles/agent-cycle.toml``
 files are examples. A version-1 profile has exactly four required keys:
 
 - ``profile_version = 1``;
-- ``name``, a non-empty string;
+- ``name``, a non-empty label for people, which no tool reads;
 - ``repository``, the chat's expected working directory and the only one
   where commits may be escalated;
 - ``state``, the directory holding the active-chat record, queue lock and
   pending marker.
 
 The path values are absolute or begin with ``~/``, which is expanded against
-``HOME``. Invalid, unreadable or incomplete profiles and unknown keys are
-configuration errors: the tool exits 2 before writing anything. The snapshot
-and usage report do not load a profile.
+``HOME``. Their spelling has no empty, ``.`` or ``..`` component and no
+trailing slash. This validation is lexical and does not access the filesystem.
+Invalid, unreadable or incomplete profiles and unknown keys are configuration
+errors: the tool exits 2 before writing anything. The snapshot and usage
+report do not load a profile.
 
 The driver runs the tools from a pinned, read-only copy of an approved
 revision, never from the live checkout. Otherwise the implementer's

@@ -179,15 +179,17 @@ A version-1 profile has exactly these required keys:
 | Key | Meaning |
 |---|---|
 | `profile_version = 1` | the exact profile format version |
-| `name` | a non-empty project name |
+| `name` | a non-empty label for people; no tool reads it |
 | `repository` | the chat's expected working directory and the only repository where commits may be escalated |
 | `state` | the directory holding the active-chat record, queue lock and pending marker |
 
 The two path values must be absolute or start with `~/`; the latter form is
-expanded against `HOME`. Unknown or missing keys, wrong types, other versions,
-invalid TOML and unreadable files are configuration errors. The stateful tools
-refuse with exit status 2 before writing anything. `AGENT_CYCLE_REPO`,
-`AGENT_CYCLE_STATE` and `S0_STATE_DIR` are retired and must be unset.
+expanded against `HOME`. Their spelling is canonical: no empty, `.` or `..`
+component and no trailing slash. This check is lexical and does not access the
+filesystem. Unknown or missing keys, wrong types, other versions, invalid TOML
+and unreadable files are configuration errors. The stateful tools refuse with
+exit status 2 before writing anything. `AGENT_CYCLE_REPO`, `AGENT_CYCLE_STATE`
+and `S0_STATE_DIR` are retired and must be unset.
 
 The queue refuses an active-chat record that belongs to another repository.
 A project's first chat can be identified against a chat of another project:

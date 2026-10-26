@@ -35,11 +35,20 @@ PROFILE_KEYS = frozenset(("profile_version", "name", "repository", "state"))
 RETIRED_PROFILE_VARIABLES = ("AGENT_CYCLE_REPO", "AGENT_CYCLE_STATE", "S0_STATE_DIR")
 
 
+def _require_canonical_path_spelling(profile_path: Path, key: str, value: str, relative_part: str) -> None:
+    """Reject lexical path components that Path would silently normalize."""
+    if value.endswith("/") or any(component in ("", ".", "..") for component in relative_part.split("/")):
+        raise ProfileError(
+            f'{profile_path}: {key}: expected a canonical path (no empty, "." or ".." component, no trailing "/")'
+        )
+
+
 def _profile_value_path(profile_path: Path, key: str, value: object) -> Path:
     """Validate and expand one path from a selected profile."""
     if not isinstance(value, str):
         raise ProfileError(f"{profile_path}: {key}: expected a string path")
     if value.startswith("~/"):
+        _require_canonical_path_spelling(profile_path, key, value, value[2:])
         home = os.environ.get("HOME")
         if not home or not Path(home).is_absolute():
             raise ProfileError(f"{profile_path}: {key}: cannot expand ~/ because HOME is not absolute")
@@ -47,6 +56,7 @@ def _profile_value_path(profile_path: Path, key: str, value: object) -> Path:
     path = Path(value)
     if not path.is_absolute():
         raise ProfileError(f"{profile_path}: {key}: expected absolute or starting with ~/")
+    _require_canonical_path_spelling(profile_path, key, value, value[1:])
     return path
 
 
