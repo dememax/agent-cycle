@@ -144,7 +144,7 @@ def test_retired_selector_is_refused(isolated_env: IsolatedEnvironment, variable
             "extra",
             "unknown",
         ),
-        ('profile_version = 2\nname = "x"\nrepository = "/repo"\nstate = "/state"\n', "profile_version", "1"),
+        ('profile_version = 3\nname = "x"\nrepository = "/repo"\nstate = "/state"\n', "profile_version", "1"),
         ('profile_version = true\nname = "x"\nrepository = "/repo"\nstate = "/state"\n', "profile_version", "1"),
         ('profile_version = 1\nname = ""\nrepository = "/repo"\nstate = "/state"\n', "name", "non-empty"),
         ('profile_version = 1\nname = 3\nrepository = "/repo"\nstate = "/state"\n', "name", "non-empty"),
