@@ -105,8 +105,8 @@ def main() -> int:
     print(f"candidates: {len(candidates)}; unreadable look-alikes: {len(damaged)}")
     for path, meta, _recs in candidates:
         print(f"  {meta['id']}  {meta['timestamp']}  {path}")
-    for path, error in damaged:
-        print(f"  UNREADABLE {path}: {error}")
+    for path, problem in damaged:
+        print(f"  UNREADABLE {path}: {problem}")
     if len(candidates) != 1 or damaged:
         print("FAIL: exactly one readable candidate, and no unreadable look-alike, is required")
         return 1

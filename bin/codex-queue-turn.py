@@ -48,6 +48,7 @@ import sys
 import time
 from datetime import datetime
 from pathlib import Path
+from typing import Any, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import codexlog
@@ -90,7 +91,7 @@ def write_durably(path: Path, text: str) -> None:
     fsync_dir(path.parent)
 
 
-def check(active: dict, prompt_text: str | None) -> tuple[list[dict] | None, str | None]:
+def check(active: dict[str, Any], prompt_text: str | None) -> tuple[list[dict[str, Any]] | None, str | None]:
     if active.get("cwd") != codexlog.CWD:
         return None, f"active record's cwd {active.get('cwd')!r} is not the selected repository {codexlog.CWD!r}"
     log = Path(active["log_path"])
@@ -156,6 +157,8 @@ def main() -> int:
         recs, problem = check(active, prompt_text)
         if problem:
             return refuse(problem)
+        recs = cast("list[dict[str, Any]]", recs)
+        prompt_text = cast("str", prompt_text)
         log = Path(active["log_path"])
         before = len(recs)
         known = set(codexlog.turn_states(recs))

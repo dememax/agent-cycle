@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+from typing import Any, cast
 
 
 def _project_path(variable: str, default: Path) -> Path:
@@ -65,9 +66,9 @@ def canonical(text: str) -> str:
     return text.rstrip("\n")
 
 
-def records(path: Path) -> list[dict]:
+def records(path: Path) -> list[dict[str, Any]]:
     """Every line must be one JSON object; nothing is skipped."""
-    out: list[dict] = []
+    out: list[dict[str, Any]] = []
     with Path(path).open(encoding="utf-8") as stream:
         for number, line in enumerate(stream, 1):
             if not line.endswith("\n"):
@@ -84,21 +85,21 @@ def records(path: Path) -> list[dict]:
     return out
 
 
-def session_meta(recs: list[dict]) -> dict:
+def session_meta(recs: list[dict[str, Any]]) -> dict[str, Any]:
     first = recs[0]
     if first.get("type") != "session_meta":
         raise LogError("first record is not session_meta")
     return first.get("payload") or {}
 
 
-def composer_messages(recs: list[dict]) -> list[tuple[int, str, str]]:
+def composer_messages(recs: list[dict[str, Any]]) -> list[tuple[int, str, str]]:
     """(index, turn_id, text) of each composer message, in log order.
 
     A composer message is a user-role response item whose metadata
     ``content_item_kinds`` is exactly ["user.text"]; injected items
     (AGENTS.md, environment, app state) carry other kinds.
     """
-    out = []
+    out: list[tuple[int, str, str]] = []
     for index, record in enumerate(recs):
         payload = record.get("payload") or {}
         if record.get("type") != "response_item" or payload.get("type") != "message" or payload.get("role") != "user":
@@ -109,13 +110,13 @@ def composer_messages(recs: list[dict]) -> list[tuple[int, str, str]]:
         text = "".join(
             part.get("text", "") for part in payload.get("content") or [] if part.get("type") == "input_text"
         )
-        out.append((index, meta.get("turn_id"), text))
+        out.append((index, cast("str", meta.get("turn_id")), text))
     return out
 
 
-def turn_states(recs: list[dict]) -> dict[str, dict]:
+def turn_states(recs: list[dict[str, Any]]) -> dict[str, dict[str, int | None]]:
     """Per turn ID: index of task_started and of its later task_complete."""
-    states: dict[str, dict] = {}
+    states: dict[str, dict[str, int | None]] = {}
     for index, record in enumerate(recs):
         payload = record.get("payload") or {}
         kind = payload.get("type")
@@ -138,11 +139,11 @@ def turn_states(recs: list[dict]) -> dict[str, dict]:
     return states
 
 
-def running_turns(recs: list[dict]) -> list[str]:
+def running_turns(recs: list[dict[str, Any]]) -> list[str]:
     return [turn for turn, state in turn_states(recs).items() if state["complete"] is None]
 
 
-def initial_composer(recs: list[dict]) -> tuple[str, str]:
+def initial_composer(recs: list[dict[str, Any]]) -> tuple[str, str]:
     """(turn_id, text) of the thread's first composer message; its turn must be complete."""
     messages = composer_messages(recs)
     if not messages:
@@ -154,5 +155,5 @@ def initial_composer(recs: list[dict]) -> tuple[str, str]:
     return turn, text
 
 
-def turn_contexts(recs: list[dict]) -> list[dict]:
+def turn_contexts(recs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [r.get("payload") or {} for r in recs if r.get("type") == "turn_context"]
