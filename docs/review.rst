@@ -13,6 +13,9 @@ the implementer reviewing the driver's plans and documents.
 Reproduce, do not trust
 *************************
 
+Read a named part of a Markdown or reStructuredText plan or record with
+``bin/read-section.py FILE HEADING`` instead of an ad hoc section extractor.
+
 1. A report is a list of claims to check. Run the tests, read the diff,
    probe the tool.
 2. Isolate the review. The driver reviews the implementer's commits in
