@@ -273,6 +273,98 @@ def test_shell_metacharacter_escalations_are_flagged(
     assert "ESCALATION BAD" in stdout
 
 
+@pytest.mark.parametrize(
+    "command",
+    [
+        pytest.param(
+            "git commit {--amend,-F/tmp/generated}",
+            id="brace-argument",
+        ),
+        pytest.param(
+            "git commit --am{e,}nd -F /tmp/generated",
+            id="brace-inside-option",
+        ),
+        pytest.param("git commit -F /tmp/generated *", id="star"),
+        pytest.param("git commit -F /tmp/generated --amen?", id="question"),
+        pytest.param("git commit -F /tmp/generated [generated]", id="bracket"),
+        pytest.param("git commit -F /tmp/generated ~", id="tilde"),
+    ],
+)
+def test_unquoted_shell_expansions_are_flagged(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    command: str,
+) -> None:
+    """Active brace, pathname and tilde expansions fail closed."""
+    code, stdout, _stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(escalated_function_call(command, str(isolated_env.repo))),
+    )
+
+    assert code == 1
+    assert "ESCALATION BAD" in stdout
+
+
+@pytest.mark.parametrize("option", ["--am=x", "--ame=x", "--amen=x", "--amend=no"])
+def test_amend_equals_forms_require_exact_authorization(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    option: str,
+) -> None:
+    """An equals suffix does not hide an amend option or its prefix."""
+    command = f"git commit {option} -F /tmp/generated"
+    code, stdout, _stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(escalated_function_call(command, str(isolated_env.repo))),
+    )
+
+    assert code == 1
+    assert "ESCALATION BAD" in stdout
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git commit -m '{x} * ? [y] ~'",
+        'git commit -m "{x} * ?"',
+    ],
+    ids=["single-quoted", "double-quoted"],
+)
+def test_quoted_shell_expansion_characters_remain_literal(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    command: str,
+) -> None:
+    """Expansion characters inside quotes remain literal message text."""
+    code, stdout, stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(escalated_function_call(command, str(isolated_env.repo))),
+    )
+
+    assert code == 0, stderr
+    assert "ESCALATION ok" in stdout
+
+
+def test_amend_equals_form_accepts_exact_authorization(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """An exact per-turn exception may authorize an equals-form amend."""
+    command = "git commit --amend=no -F /tmp/generated"
+    code, stdout, stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(escalated_function_call(command, str(isolated_env.repo))),
+        extra_env={"AUDIT_EXTRA_ALLOW": command},
+    )
+
+    assert code == 0, stderr
+    assert "ESCALATION ok" in stdout
+
+
 def test_escalation_display_escapes_control_characters(
     isolated_env: IsolatedEnvironment,
     tmp_path: Path,
