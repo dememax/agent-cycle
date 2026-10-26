@@ -130,6 +130,8 @@ class Scanner:
         self.rules = rules
         self.allowed_emails = {allowed_email.casefold(), *(email.casefold() for email in COAUTHOR_EMAILS)}
         self.count = 0
+        self.commits = 0
+        self.items = 0
 
     def findings(self, text: str) -> list[Finding]:
         """Return at most one finding per rule for one scanned item."""
@@ -166,6 +168,7 @@ class Scanner:
         lines: bool = False,
     ) -> None:
         """Scan one item and print only its location and matching rule name."""
+        self.items += 1
         for finding in self.findings(text):
             fields = ["finding", f"commit={commit}", f"kind={kind}"]
             if path is not None:
@@ -275,6 +278,7 @@ def scan_commit(scanner: Scanner, commit: str) -> None:
 def scan_spec(scanner: Scanner, spec: ScanSpec) -> None:
     """Scan every commit and every range-specific blob Git enumerates."""
     commits = commits_for(spec)
+    scanner.commits += len(commits)
     for commit in commits:
         scan_commit(scanner, commit)
 
@@ -350,6 +354,15 @@ def configured_email() -> str:
     return value
 
 
+def gate_revision() -> str:
+    """Return safe installed revision metadata, or an unknown marker."""
+    try:
+        revision = Path(__file__).resolve().with_name("REVISION").read_text(encoding="ascii").strip()
+    except OSError, UnicodeError:
+        return "unknown"
+    return revision if re.fullmatch(r"[0-9a-f]{40}", revision) is not None else "unknown"
+
+
 def arguments(argv: Sequence[str]) -> tuple[list[ScanSpec], list[str]]:
     """Parse explicit range mode or the pre-push hook mode."""
     if argv and argv[0] == "--pre-push":
@@ -374,7 +387,13 @@ def main(argv: Sequence[str]) -> int:
     except Refusal as error:
         print(f"check-public: refused: {error}", file=sys.stderr)
         return EXIT_REFUSAL
-    return EXIT_FINDING if scanner.count else 0
+    if scanner.count:
+        return EXIT_FINDING
+    print(
+        f"check-public: clean: commits={scanner.commits} scanned-items={scanner.items} revision {gate_revision()}",
+        file=sys.stderr,
+    )
+    return 0
 
 
 if __name__ == "__main__":
