@@ -94,6 +94,8 @@ After the turn
    for a turn that ended on an error, such as a usage limit. It always
    writes ``final-reply.md``, and ``result.json`` only when the complete
    message parses as one JSON object.
+   Save its standard output in ``audit.txt``, then append ``audit exit N``
+   with the command's exit status; the record generator never infers it.
    Commands are tokenized as shell syntax; other operators, redirections and
    expansions are flagged, and ``git commit --amend`` needs the turn's exact
    authorization.
@@ -106,14 +108,15 @@ After the turn
    first, for example that a flagged call only wrote a test fixture, but the
    person decides how work resumes.
 5. Review the result by reproducing it (:doc:`review`).
-6. Record the turn: times, commits, audit, snapshots, the review's
-   findings and verdict.
-7. Usage: ``bin/turn-usage.py CLAUDE_TRANSCRIPT --previous
+6. Usage: ``bin/turn-usage.py CLAUDE_TRANSCRIPT --previous
    PREVIOUS_TURN_DIR TURN_DIR`` writes ``usage.json`` only into ``TURN_DIR``
    and prints its table row and renewal facts. ``PREVIOUS_TURN_DIR`` is
    read-only; its end is where the driver's cycle for the current turn
    begins. Without ``--previous``, that window starts at ``TURN_DIR``'s
    ``started`` time (:doc:`tokens`).
+7. Start the turn record with ``bin/turn-record.py TURN_DIR`` after all the
+   evidence above exists, then add the review's judgement, findings and
+   verdict to its factual Markdown skeleton.
 
 ********************
 The turn directory
@@ -136,7 +139,8 @@ The turn directory
    * - ``finished``
      - when the turn completed
    * - ``audit.txt``, ``final-reply.md``, ``result.json``
-     - the audit and the final message; ``result.json`` only when the
-       complete message parses as one JSON object
+     - the audit's standard output followed by ``audit exit N``, and the final
+       message; ``result.json`` only when the complete message parses as one
+       JSON object
    * - ``usage.json``, ``usage-row.txt``
      - both agents' usage and the renewal facts for the turn

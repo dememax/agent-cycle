@@ -70,6 +70,7 @@ practices.
 | `bin/github-snapshot.sh` | Snapshot the HEAD, refs and status of each repository under `~/github/*/` and `~/github/*/*/`, failing closed on an incomplete Git query |
 | `bin/turn-usage.py` | One turn's usage and renewal facts for both agents; an optional previous turn is read-only (best-effort: malformed lines are skipped) |
 | `bin/read-section.py` | Read one Markdown or reStructuredText section exactly, refusing missing or ambiguous headings and invalid inputs |
+| `bin/turn-record.py` | Generate the factual Markdown skeleton of a turn record from its evidence directory, without guessing missing facts |
 | `bin/codexlog.py` | The strict log reader the tools share |
 | `tools/check-public.sh` | Fail closed on protected patterns in the content and metadata a push would publish |
 | `tools/pre-push` | Tracked Git hook that applies the public-content gate to proposed ref updates |
