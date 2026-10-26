@@ -113,6 +113,11 @@ when they have a value on the same line: `creator_user_id`,
 `creator_account_id`, `account_id`, `accountUuid`, `organizationUuid`,
 `userID` and `user_id`.
 
+Because the email rule is deliberately conservative, it can flag an allowed
+address written inside a shell assignment such as `key='<identity>'`; documents
+should write identities as placeholders, as [the release procedure](docs/releasing.rst)
+does.
+
 Do not point `core.hooksPath` into the work tree: checking out a commit that
 does not contain the hook would silently disable it. Instead, install an
 approved commit into a new directory outside the repository. The revision
