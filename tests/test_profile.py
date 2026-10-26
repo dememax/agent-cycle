@@ -67,6 +67,40 @@ def test_tilde_paths_expand_only_against_home(isolated_env: IsolatedEnvironment)
     }
 
 
+@pytest.mark.parametrize(
+    "value",
+    ["~//etc", "/a//b", "/a/./b", "/a/../b", "~/a/../b", "~/./a", "/a/", "~/a/"],
+    ids=[
+        "tilde-empty-component",
+        "absolute-empty-component",
+        "absolute-dot-component",
+        "absolute-dot-dot-component",
+        "tilde-dot-dot-component",
+        "tilde-dot-component",
+        "absolute-trailing-slash",
+        "tilde-trailing-slash",
+    ],
+)
+def test_profile_path_requires_canonical_spelling(
+    isolated_env: IsolatedEnvironment,
+    value: str,
+) -> None:
+    """Profile paths cannot change meaning during Path construction."""
+    write_profile(
+        isolated_env.profile,
+        f'profile_version = 1\nname = "x"\nrepository = {json.dumps(value)}\nstate = "/state"\n',
+    )
+
+    code, stdout, stderr = run_profile(isolated_env)
+
+    assert code == 2
+    assert stdout == ""
+    assert stderr.count("\n") == 1
+    assert str(isolated_env.profile) in stderr
+    assert "repository" in stderr
+    assert 'expected a canonical path (no empty, "." or ".." component, no trailing "/")' in stderr
+
+
 @pytest.mark.parametrize("value", [None, "", "relative/profile.toml"], ids=["unset", "empty", "relative"])
 def test_profile_selector_is_required_and_absolute(
     isolated_env: IsolatedEnvironment,

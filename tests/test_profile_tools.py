@@ -122,6 +122,26 @@ def test_each_stateful_tool_refuses_invalid_profile(
     assert "invalid TOML" in stderr
 
 
+def test_queue_refuses_noncanonical_profile_path(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """A stateful tool reports a lexical path error before touching state."""
+    isolated_env.profile.write_text(
+        f'profile_version = 1\nname = "x"\nrepository = "/generated//repo"\nstate = "{isolated_env.state}"\n',
+        encoding="utf-8",
+    )
+
+    code, stdout, stderr = run_configuration_case(isolated_env, tmp_path, "queue")
+
+    assert code == 2
+    assert stdout == ""
+    assert stderr.count("\n") == 1
+    assert str(isolated_env.profile) in stderr
+    assert "repository" in stderr
+    assert 'expected a canonical path (no empty, "." or ".." component, no trailing "/")' in stderr
+
+
 def test_identifier_and_queue_use_the_same_profile_state(
     isolated_env: IsolatedEnvironment,
     tmp_path: Path,
