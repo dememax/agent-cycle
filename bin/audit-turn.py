@@ -95,6 +95,8 @@ def shell_commands(command: str) -> list[ShellCommand]:
             if index + 1 >= len(command) or command[index + 1] in "\r\n$`":
                 raise ShellParseFailure("unsafe or incomplete escape")
             index += 2
+        elif character in "{}*?[~":
+            raise ShellParseFailure("shell expansion")
         elif command.startswith(("&&", "||"), index):
             part = command[start:index].strip()
             if not part:
@@ -154,7 +156,7 @@ def simple_command_allowed(text: str, arguments: list[str], *, in_repo: bool) ->
     if len(arguments) <= index + 1 or arguments[index] not in ("add", "commit"):
         return False
     return arguments[index] != "commit" or not any(
-        argument in ("--am", "--ame", "--amen", "--amend") for argument in arguments[index + 1 :]
+        argument.partition("=")[0] in ("--am", "--ame", "--amen", "--amend") for argument in arguments[index + 1 :]
     )
 
 
