@@ -373,15 +373,20 @@ def main() -> int:
     previous_end = local_time(previous / "finished") if previous is not None else None
     if previous is not None and previous_end is None:
         parser.error(f"cannot read previous turn finish time: {previous / 'finished'}")
+    log_path = turn / "thread-log-path"
+    try:
+        log = Path(log_path.read_text(encoding="utf-8").strip())
+    except OSError:
+        parser.error(f"cannot read current turn log path: {log_path}")
+    start_path = turn / "thread-log-lines-before"
+    try:
+        start = int(start_path.read_text(encoding="utf-8").strip())
+    except OSError, ValueError:
+        parser.error(f"cannot read current turn log starting line: {start_path}")
     print(
         "| turn | Codex 5h % | Codex week % | Codex tokens in / cached / out | Codex median context/call | Claude tokens in+cache-write / cache-read / out (msgs) | Claude median context/msg |"
     )
     print("|---|---|---|---|---|---|---|")
-    try:
-        log = Path((turn / "thread-log-path").read_text().strip())
-        start = int((turn / "thread-log-lines-before").read_text().strip())
-    except OSError, ValueError:
-        return 0
     started = local_time(turn / "started")
     finished = local_time(turn / "finished")
     codex = codex_usage(log, start)
