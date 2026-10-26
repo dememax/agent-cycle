@@ -12,7 +12,11 @@ snapshot_output=$(mktemp "${TMPDIR:-/tmp}/agent-cycle-snapshot.XXXXXX") || {
   echo "github-snapshot: cannot create temporary file" >&2
   exit 2
 }
-trap 'rm -f "${snapshot_output}"' 0 1 2 3 15
+trap 'rm -f "${snapshot_output}"' 0
+trap 'rm -f "${snapshot_output}"; exit 129' 1
+trap 'rm -f "${snapshot_output}"; exit 130' 2
+trap 'rm -f "${snapshot_output}"; exit 131' 3
+trap 'rm -f "${snapshot_output}"; exit 143' 15
 snapshot_status=0
 
 fail_snapshot() {
