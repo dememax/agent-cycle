@@ -12,26 +12,83 @@ from __future__ import annotations
 
 import json
 import os
+import tomllib
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
 
-def _project_path(variable: str, default: Path) -> Path:
-    """The path an environment variable selects, else the default; never relative."""
-    value = os.environ.get(variable)
-    path = Path(value).expanduser() if value else default
+class ProfileError(ValueError):
+    """A project profile cannot be selected or read without guessing."""
+
+
+@dataclass(frozen=True)
+class ProjectProfile:
+    """The version-1 project settings used by the stateful tools."""
+
+    name: str
+    repository: Path
+    state: Path
+
+
+PROFILE_KEYS = frozenset(("profile_version", "name", "repository", "state"))
+RETIRED_PROFILE_VARIABLES = ("AGENT_CYCLE_REPO", "AGENT_CYCLE_STATE", "S0_STATE_DIR")
+
+
+def _profile_value_path(profile_path: Path, key: str, value: object) -> Path:
+    """Validate and expand one path from a selected profile."""
+    if not isinstance(value, str):
+        raise ProfileError(f"{profile_path}: {key}: expected a string path")
+    if value.startswith("~/"):
+        home = os.environ.get("HOME")
+        if not home or not Path(home).is_absolute():
+            raise ProfileError(f"{profile_path}: {key}: cannot expand ~/ because HOME is not absolute")
+        return Path(home) / value[2:]
+    path = Path(value)
     if not path.is_absolute():
-        raise SystemExit(f"{variable} must be an absolute path, not {value!r}")
+        raise ProfileError(f"{profile_path}: {key}: expected absolute or starting with ~/")
     return path
 
 
-# The project the tools serve. Its repository is every log's expected cwd and
-# the only place where commits may be escalated; its state directory holds the
-# active-thread record and the queue lock. Both default to check_rst's, so an
-# unset environment selects check_rst.
-REPO_DIR = _project_path("AGENT_CYCLE_REPO", Path.home() / "github" / "check_rst")
-STATE_DIR = _project_path("AGENT_CYCLE_STATE", Path.home() / ".local/state/agent-cycle/check_rst")
-CWD = str(REPO_DIR)
+def load_project_profile() -> ProjectProfile:
+    """Load the required exact version-1 profile selected by the environment."""
+    for variable in RETIRED_PROFILE_VARIABLES:
+        if variable in os.environ:
+            raise ProfileError(f"{variable}: retired; unset it and use AGENT_CYCLE_PROFILE")
+    if "AGENT_CYCLE_PROFILE" not in os.environ:
+        raise ProfileError("AGENT_CYCLE_PROFILE: is unset")
+    selected = os.environ["AGENT_CYCLE_PROFILE"]
+    profile_path = Path(selected)
+    if not profile_path.is_absolute():
+        raise ProfileError(f"AGENT_CYCLE_PROFILE: must be an absolute path, not {selected!r}")
+    try:
+        with profile_path.open("rb") as stream:
+            profile = tomllib.load(stream)
+    except OSError as error:
+        raise ProfileError(f"{profile_path}: profile: cannot read ({error})") from None
+    except tomllib.TOMLDecodeError as error:
+        raise ProfileError(f"{profile_path}: profile: invalid TOML ({error})") from None
+    missing = PROFILE_KEYS - profile.keys()
+    if missing:
+        key = sorted(missing)[0]
+        raise ProfileError(f"{profile_path}: {key}: missing required key")
+    unknown = profile.keys() - PROFILE_KEYS
+    if unknown:
+        key = sorted(unknown)[0]
+        raise ProfileError(f"{profile_path}: {key}: unknown key")
+    version = profile["profile_version"]
+    if type(version) is not int or version != 1:
+        raise ProfileError(f"{profile_path}: profile_version: expected integer 1")
+    name = profile["name"]
+    if not isinstance(name, str) or not name:
+        raise ProfileError(f"{profile_path}: name: expected a non-empty string")
+    return ProjectProfile(
+        name=name,
+        repository=_profile_value_path(profile_path, "repository", profile["repository"]),
+        state=_profile_value_path(profile_path, "state", profile["state"]),
+    )
+
+
 STOPPING_KEYS = (
     "cwd",
     "workspace_roots",
