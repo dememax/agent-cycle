@@ -355,6 +355,47 @@ def test_unusable_current_turn_log_evidence_is_a_usage_error(
     assert not (turn / "usage.json").exists()
 
 
+@pytest.mark.parametrize(
+    "broken_input",
+    ["missing-log", "log-is-directory", "missing-transcript"],
+)
+def test_unreadable_usage_inputs_are_usage_errors(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    broken_input: str,
+) -> None:
+    """Required JSONL inputs fail as usage errors before any output."""
+    log = tmp_path / "rollout-generated.jsonl"
+    turn = tmp_path / "turn-current"
+    make_turn(
+        turn,
+        log,
+        make_codex_log(log),
+        started="2040-01-02 10:00:00 +0000",
+        finished="2040-01-02 10:10:00 +0000",
+    )
+    transcript = tmp_path / "claude-generated.jsonl"
+    if broken_input == "missing-log":
+        log.unlink()
+        broken = log
+        write_json_lines(transcript, [])
+    elif broken_input == "log-is-directory":
+        log.unlink()
+        log.mkdir()
+        broken = log
+        write_json_lines(transcript, [])
+    else:
+        broken = transcript
+
+    result = isolated_env.run([PYTHON, "-I", USAGE, transcript, turn])
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert str(broken) in result.stderr
+    assert "Traceback" not in result.stderr
+    assert not (turn / "usage.json").exists()
+
+
 def test_renewal_compaction_buckets_and_third_compaction_trigger(
     isolated_env: IsolatedEnvironment,
     tmp_path: Path,
