@@ -19,6 +19,7 @@ def main() -> int:
     operation = sys.argv[1]
     argument = sys.argv[2]
     functions: dict[str, Any] = CODEXLOG
+    result: object
     if operation == "profile":
         try:
             profile = functions["load_project_profile"]()

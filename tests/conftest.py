@@ -71,11 +71,10 @@ def isolated_env(tmp_path: Path) -> IsolatedEnvironment:
         {
             "HOME": str(home),
             "CODEX": str(fake_codex),
-            "AGENT_CYCLE_REPO": str(repo),
-            "AGENT_CYCLE_STATE": str(state),
             "AGENT_CYCLE_PROFILE": str(profile),
             "S0_QUEUE_TIMEOUT": "0.5",
         }
     )
-    variables.pop("S0_STATE_DIR", None)
+    for retired in ("AGENT_CYCLE_REPO", "AGENT_CYCLE_STATE", "S0_STATE_DIR"):
+        variables.pop(retired, None)
     return IsolatedEnvironment(home, repo, state, profile, fake_codex, variables)

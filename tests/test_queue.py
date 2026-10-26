@@ -408,24 +408,3 @@ def test_prompt_rewritten_after_submission_still_matches_original(
     assert (case.turn_dir / "prompt.md").read_text(encoding="utf-8") == "rewritten after submission\n"
     assert (case.turn_dir / "turn-id").read_text(encoding="utf-8") == "turn-rewrite\n"
     assert not (case.state / "pending.json").exists()
-
-
-def test_legacy_state_variable_overrides_selected_state(
-    isolated_env: IsolatedEnvironment,
-    tmp_path: Path,
-) -> None:
-    """S0_STATE_DIR selects all queue state when it is present."""
-    override = tmp_path / "legacy-state"
-    case = make_case(isolated_env, tmp_path, state=override)
-
-    returncode, _stdout, stderr = run_queue(
-        isolated_env,
-        case,
-        "turn",
-        extra_env={"S0_STATE_DIR": str(override)},
-    )
-
-    assert returncode == 0, stderr
-    assert (override / "queue.lock").is_file()
-    assert not (isolated_env.state / "queue.lock").exists()
-    assert (case.turn_dir / "turn-id").read_text(encoding="utf-8") == "turn-new\n"

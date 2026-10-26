@@ -10,7 +10,7 @@ SINCE_ISO must carry a time-zone offset (for example 2026-10-25T11:40:00+01:00).
 
 A candidate is a rollout file under ~/.codex/sessions that parses
 completely (codexlog.records), whose session_meta says source "vscode",
-originator "codex_vscode", cwd the project's repository (codexlog.REPO_DIR), created after
+originator "codex_vscode", cwd the profile's repository, created after
 SINCE_ISO, and whose INITIAL composer message (the first "user.text" item)
 equals SENTINEL apart from trailing newlines (codexlog.canonical), in a completed initial turn. Exactly one candidate
 must exist. Unparseable files are reported and count as a failure when
@@ -22,10 +22,9 @@ thread belongs to another repository (the first chat of a project), its
 settings are compared relocated: every string that is the old repository's
 path, or a path under it, is moved to the selected repository first. With --write and
 no stopping difference, it writes active-codex-thread.json in the project's
-state directory (codexlog.STATE_DIR).
+state directory.
 
-The project is selected by AGENT_CYCLE_REPO and AGENT_CYCLE_STATE, both
-check_rst's when unset (codexlog).
+The project is selected by the required AGENT_CYCLE_PROFILE file (codexlog).
 """
 
 from __future__ import annotations
@@ -37,8 +36,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import codexlog
-
-ACTIVE = codexlog.STATE_DIR / "active-codex-thread.json"
 
 
 def relocate(value: object, old_root: str, new_root: str) -> object:
@@ -55,6 +52,13 @@ def relocate(value: object, old_root: str, new_root: str) -> object:
 
 
 def main() -> int:
+    try:
+        profile = codexlog.load_project_profile()
+    except codexlog.ProfileError as error:
+        print(f"codex-identify-thread: configuration error: {error}", file=sys.stderr)
+        return 2
+    repository = str(profile.repository)
+    active = profile.state / "active-codex-thread.json"
     if len(sys.argv) < 4:
         print(__doc__)
         return 2
@@ -89,7 +93,7 @@ def main() -> int:
             if newer:
                 damaged.append((path, "first record is not session_meta"))
             continue
-        if (meta.get("source"), meta.get("originator"), meta.get("cwd")) != ("vscode", "codex_vscode", codexlog.CWD):
+        if (meta.get("source"), meta.get("originator"), meta.get("cwd")) != ("vscode", "codex_vscode", repository):
             continue
         created = datetime.fromisoformat(meta["timestamp"].replace("Z", "+00:00"))
         if created <= since:
@@ -124,9 +128,9 @@ def main() -> int:
     # A first chat for another project takes its settings from a chat of
     # another repository: compare them relocated to the selected one.
     old_cwd = codexlog.session_meta(old_recs).get("cwd")
-    if isinstance(old_cwd, str) and old_cwd != codexlog.CWD:
-        print(f"  profile compared relocated: {old_cwd} -> {codexlog.CWD}")
-        old = {k: relocate(v, old_cwd, codexlog.CWD) for k, v in old.items()}
+    if isinstance(old_cwd, str) and old_cwd != repository:
+        print(f"  profile compared relocated: {old_cwd} -> {repository}")
+        old = {k: relocate(v, old_cwd, repository) for k, v in old.items()}
     stopping = [k for k in codexlog.STOPPING_KEYS if new.get(k) != old.get(k)]
     for key in codexlog.STOPPING_KEYS:
         print(f"  {'DIFF' if key in stopping else 'same'} {key}: {json.dumps(new.get(key))[:160]}")
@@ -138,7 +142,7 @@ def main() -> int:
         print("FAIL: behavioural profile differs from the old thread: " + ", ".join(stopping))
         return 1
     if write:
-        ACTIVE.write_text(
+        active.write_text(
             json.dumps(
                 {
                     "thread_id": meta["id"],
@@ -157,7 +161,7 @@ def main() -> int:
             + "\n",
             encoding="utf-8",
         )
-        print(f"written: {ACTIVE}")
+        print(f"written: {active}")
     return 0
 
 

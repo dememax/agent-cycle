@@ -37,6 +37,7 @@ any push.
 | `tools/` | The public-content gate and its tracked pre-push hook |
 | `tests/` | Generated-log tests and the isolated fake Codex CLI |
 | `schemas/` | Versioned final-message contracts |
+| `profiles/` | Tracked project profiles |
 | `docs/` | Sphinx documentation in reStructuredText |
 | `.check_formatting.toml` | What check_formatting checks, and where |
 | `.check_rst.toml` | check_rst's Sphinx facts, for the verified documentation build |
@@ -44,10 +45,6 @@ any push.
 | `.shellcheckrc` | ShellCheck policy |
 | `.prettierrc`, `package.json`, `package-lock.json` | Prettier, pinned, for JSON and JSONC |
 | `.vscode/` | VS Code workspace defaults and recommended extensions |
-
-Still planned by the first work package: `profiles/` (one file per project,
-with its repository, allowed escalations, validation commands and state
-directory).
 
 ## File header comment
 

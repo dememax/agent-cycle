@@ -19,8 +19,7 @@ def test_subprocess_environment_cannot_reach_real_home(isolated_env: IsolatedEnv
             "-c",
             "import json, os; from pathlib import Path; "
             "print(json.dumps({'home': str(Path.home()), 'codex': os.environ['CODEX'], "
-            "'repo': os.environ['AGENT_CYCLE_REPO'], 'state': os.environ['AGENT_CYCLE_STATE'], "
-            "'old_state': os.environ.get('S0_STATE_DIR')}))",
+            "'profile': os.environ['AGENT_CYCLE_PROFILE']}))",
         ]
     )
     assert probe.returncode == 0, probe.stderr
@@ -28,8 +27,6 @@ def test_subprocess_environment_cannot_reach_real_home(isolated_env: IsolatedEnv
     assert observed == {
         "home": str(isolated_env.home),
         "codex": str(isolated_env.fake_codex),
-        "repo": str(isolated_env.repo),
-        "state": str(isolated_env.state),
-        "old_state": None,
+        "profile": str(isolated_env.profile),
     }
     assert not (Path(observed["home"]) / ".codex").exists()

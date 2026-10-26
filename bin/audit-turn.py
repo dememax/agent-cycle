@@ -9,7 +9,7 @@ Usage: audit-turn.py THREAD_LOG START_LINE SCHEMA OUT_DIR
 Reads the rollout log from START_LINE, and:
 - lists every escalated command (sandbox_permissions: require_escalated) and
   flags any that is not `git add` / `git commit` inside the selected
-  project's repository (codexlog.CWD);
+  profile's repository;
 - saves the turn's final assistant message to OUT_DIR/final-reply.md and,
   if the complete message parses as one strict JSON object, to
   OUT_DIR/result.json, then validates it recursively against the supported
@@ -33,8 +33,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import codexlog
 import result_schema
 
+try:
+    PROFILE = codexlog.load_project_profile()
+except codexlog.ProfileError as error:
+    print(f"audit-turn: configuration error: {error}", file=sys.stderr)
+    sys.exit(2)
+
 log, start, schema_path, out = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
-REPO = codexlog.CWD
+REPO = str(PROFILE.repository)
 ALLOW = re.compile(r"^git(\s+-C\s+" + re.escape(REPO) + r"/?)?\s+(add|commit)\b")
 # A per-turn extension, decided by the user for one turn only, passed as a
 # regular expression in AUDIT_EXTRA_ALLOW (e.g. the prescribed release tag).

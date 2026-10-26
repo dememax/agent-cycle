@@ -48,11 +48,10 @@ Tests
    only generated logs and a fake Codex CLI.
 
 Done in the first work package
-   The tests, and a fail-closed parser for the audit's escalation
-   detection.
+   The tests; the audit's fail-closed escalation parser and complete result
+   validation; the public-content push gate; fail-closed repository
+   snapshots; usage and renewal facts; the initial lint debt; and project
+   profiles.
 
 Next in the first work package
-   - the push gate, which must pass before anything here is pushed;
-   - the remaining Ruff, mypy and ShellCheck findings;
-   - project profiles, replacing the two environment variables that
-     select a project today.
+   Release ``v0.1.0``.

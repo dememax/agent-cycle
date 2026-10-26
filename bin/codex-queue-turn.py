@@ -6,15 +6,14 @@
 
 Usage: codex-queue-turn.py TURN_DIR
 
-The state directory (active-codex-thread.json, queue.lock, pending.json) is
-the selected project's, codexlog.STATE_DIR (AGENT_CYCLE_STATE); S0_STATE_DIR,
-the older name, overrides it when set.
+The state directory (active-codex-thread.json, queue.lock, pending.json) and
+repository come from the required AGENT_CYCLE_PROFILE file.
 
 Holds an exclusive lock (queue.lock) from the checks until Codex has
 visibly started the new turn, so two drivers cannot both queue. Refuses
 (exit 1) unless all of these hold:
 - active-codex-thread.json exists; its log parses completely;
-- the record's cwd is the selected project's repository (codexlog.CWD);
+- the record's cwd is the selected profile's repository;
 - the log's session_meta id, source, originator, cwd and timestamp equal
   the record's;
 - the log's initial composer message is exactly the recorded sentinel, in a
@@ -53,12 +52,6 @@ from typing import Any, cast
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import codexlog
 
-# S0_STATE_DIR, the older name, still overrides the selected project's state directory.
-STATE = Path(os.environ["S0_STATE_DIR"]) if os.environ.get("S0_STATE_DIR") else codexlog.STATE_DIR
-ACTIVE = STATE / "active-codex-thread.json"
-LOCK = STATE / "queue.lock"
-PENDING = STATE / "pending.json"
-
 
 def refuse(message: str) -> int:
     print(f"codex-queue-turn: REFUSED: {message}", file=sys.stderr)
@@ -91,9 +84,13 @@ def write_durably(path: Path, text: str) -> None:
     fsync_dir(path.parent)
 
 
-def check(active: dict[str, Any], prompt_text: str | None) -> tuple[list[dict[str, Any]] | None, str | None]:
-    if active.get("cwd") != codexlog.CWD:
-        return None, f"active record's cwd {active.get('cwd')!r} is not the selected repository {codexlog.CWD!r}"
+def check(
+    active: dict[str, Any],
+    prompt_text: str | None,
+    repository: str,
+) -> tuple[list[dict[str, Any]] | None, str | None]:
+    if active.get("cwd") != repository:
+        return None, f"active record's cwd {active.get('cwd')!r} is not the selected repository {repository!r}"
     log = Path(active["log_path"])
     try:
         recs = codexlog.records(log)
@@ -132,29 +129,40 @@ def check(active: dict[str, Any], prompt_text: str | None) -> tuple[list[dict[st
 
 
 def main() -> int:
+    try:
+        profile = codexlog.load_project_profile()
+    except codexlog.ProfileError as error:
+        print(f"codex-queue-turn: configuration error: {error}", file=sys.stderr)
+        return 2
+    repository = str(profile.repository)
+    active_path = profile.state / "active-codex-thread.json"
+    lock_path = profile.state / "queue.lock"
+    pending_path = profile.state / "pending.json"
     if len(sys.argv) != 2:
         print(__doc__)
         return 2
     turn_dir = Path(sys.argv[1])
-    if not ACTIVE.is_file():
+    if not active_path.is_file():
         return refuse("no active-codex-thread.json")
     codex = codex_binary()
     if not codex or not os.access(codex, os.X_OK):
         return refuse("codex binary not found")
-    with LOCK.open("w") as lock:
+    with lock_path.open("w") as lock:
         try:
             fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             return refuse("another queue is in progress (queue.lock held)")
-        active = json.loads(ACTIVE.read_text(encoding="utf-8"))
-        if PENDING.exists():
-            pending = json.loads(PENDING.read_text(encoding="utf-8"))
-            return refuse(f"an earlier submission never started a turn: {pending}; investigate, then remove {PENDING}")
+        active = json.loads(active_path.read_text(encoding="utf-8"))
+        if pending_path.exists():
+            pending = json.loads(pending_path.read_text(encoding="utf-8"))
+            return refuse(
+                f"an earlier submission never started a turn: {pending}; investigate, then remove {pending_path}"
+            )
         # Read the prompt once, under the lock; the same text is validated,
         # submitted and compared, so a later change to the file cannot slip in.
         prompt_file = turn_dir / "prompt.md"
         prompt_text = prompt_file.read_text(encoding="utf-8") if prompt_file.is_file() else None
-        recs, problem = check(active, prompt_text)
+        recs, problem = check(active, prompt_text, repository)
         if problem:
             return refuse(problem)
         recs = cast("list[dict[str, Any]]", recs)
@@ -168,7 +176,7 @@ def main() -> int:
             datetime.now().astimezone().strftime("%Y-%m-%d %H:%M:%S %z") + "\n", encoding="utf-8"
         )
         write_durably(
-            PENDING,
+            pending_path,
             json.dumps({"turn_dir": str(turn_dir), "thread_id": active["thread_id"], "lines_before": before}) + "\n",
         )
         timeout = float(os.environ.get("S0_QUEUE_TIMEOUT", "300"))
@@ -210,8 +218,8 @@ def main() -> int:
                 return refuse(f"new turn {turn} does not carry the submitted prompt; pending.json kept")
             # The turn ID is durable before the marker goes.
             write_durably(turn_dir / "turn-id", turn + "\n")
-            PENDING.unlink()
-            fsync_dir(PENDING.parent)
+            pending_path.unlink()
+            fsync_dir(pending_path.parent)
             print(f"queued; turn {turn} started with the submitted prompt")
             return 0
         return refuse(

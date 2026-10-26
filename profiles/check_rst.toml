@@ -1,0 +1,8 @@
+# Copyright (C) 2026 Maxime P. DEMENTYEV
+# SPDX-License-Identifier: GPL-3.0-only
+# Project profile for check_rst — agent-cycle project
+
+profile_version = 1
+name = "check_rst"
+repository = "~/github/check_rst"
+state = "~/.local/state/agent-cycle/check_rst"

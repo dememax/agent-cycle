@@ -27,12 +27,12 @@ repository itself.
   with generated logs and a fake Codex CLI only.
 - **Done in the first work package:** the tests; the audit's fail-closed
   escalation parser and complete result validation (`AUDIT-2`); the
-  public-content push gate; fail-closed repository snapshots, including signal
-  handling (`SNAP1/m1`); and usage and renewal facts (`USAGE-1`).
-- **Next in it:** approve the gate's clean-pass evidence (`GATE-2`), resolve
-  the remaining lint findings, add project profiles that replace the two
-  environment variables (below), and release `v0.1.0`. See
-  [AGENTS.md](AGENTS.md).
+  public-content push gate, including its clean-pass evidence (`GATE-2`);
+  fail-closed repository snapshots, including signal handling (`SNAP1/m1`);
+  usage and renewal facts (`USAGE-1`); and the remaining lint findings
+  (`LINT-1`). Project profiles now replace the old repository and state
+  environment variables (below).
+- **Next:** release `v0.1.0`. See [AGENTS.md](AGENTS.md).
 
 ## Documentation
 
@@ -169,21 +169,32 @@ above. Review and the rule that only a person pushes remain necessary.
 ## Selecting the project
 
 Each project has its own Codex chat, opened in a VS Code window on that
-project's repository, and its own state directory. Two environment
-variables select the project; both default to check_rst's:
+project's repository, and its own state directory. Set
+`AGENT_CYCLE_PROFILE` to the absolute path of its TOML profile; there is no
+default or profile search path. The tracked examples are
+`profiles/check_rst.toml` and `profiles/agent-cycle.toml`.
 
-| Variable | Default | Used for |
-|---|---|---|
-| `AGENT_CYCLE_REPO` | `~/github/check_rst` | the chat's expected working directory, and the only repository where commits may be escalated |
-| `AGENT_CYCLE_STATE` | `~/.local/state/agent-cycle/check_rst` | the active-chat record and the queue lock |
+A version-1 profile has exactly these required keys:
 
-Both must be absolute. For the queue alone, `S0_STATE_DIR`, the older name,
-overrides `AGENT_CYCLE_STATE` when it is set; the identifier ignores it.
-The queue refuses an active-chat record that belongs to another
-repository. A project's first chat is identified against a chat of another
-project: its settings are compared after moving that chat's repository
-paths to the selected repository, and must otherwise be identical. Project
-profiles replace these variables later.
+| Key | Meaning |
+|---|---|
+| `profile_version = 1` | the exact profile format version |
+| `name` | a non-empty project name |
+| `repository` | the chat's expected working directory and the only repository where commits may be escalated |
+| `state` | the directory holding the active-chat record, queue lock and pending marker |
+
+The two path values must be absolute or start with `~/`; the latter form is
+expanded against `HOME`. Unknown or missing keys, wrong types, other versions,
+invalid TOML and unreadable files are configuration errors. The stateful tools
+refuse with exit status 2 before writing anything. `AGENT_CYCLE_REPO`,
+`AGENT_CYCLE_STATE` and `S0_STATE_DIR` are retired and must be unset.
+
+The queue refuses an active-chat record that belongs to another repository.
+A project's first chat can be identified against a chat of another project:
+its settings are compared after moving that chat's repository paths to the
+profile's repository, and must otherwise be identical. The identifier, queue
+and audit load the same profile at startup; the log reader, snapshot, usage
+report, result-schema reader and push-gate tools do not require one.
 
 ## License
 

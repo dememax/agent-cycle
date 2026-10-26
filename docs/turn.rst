@@ -14,14 +14,22 @@ project's state directory. One chat's turn runs at a time.
 Selecting the project
 ***********************
 
-The queue, the identifier and the audit take the project from two
-variables. Both must be absolute, and both default to check_rst's. The
-snapshot and the usage report do not read them.
+The queue, identifier and audit require ``AGENT_CYCLE_PROFILE`` to be the
+absolute path of a TOML profile. There is no default and no profile search.
+The tracked ``profiles/check_rst.toml`` and ``profiles/agent-cycle.toml``
+files are examples. A version-1 profile has exactly four required keys:
 
-- ``AGENT_CYCLE_REPO``: the repository, which is the chat's expected
-  working directory and the only one where commits may be escalated;
-- ``AGENT_CYCLE_STATE``: the state directory, which holds the active-chat
-  record and the queue lock.
+- ``profile_version = 1``;
+- ``name``, a non-empty string;
+- ``repository``, the chat's expected working directory and the only one
+  where commits may be escalated;
+- ``state``, the directory holding the active-chat record, queue lock and
+  pending marker.
+
+The path values are absolute or begin with ``~/``, which is expanded against
+``HOME``. Invalid, unreadable or incomplete profiles and unknown keys are
+configuration errors: the tool exits 2 before writing anything. The snapshot
+and usage report do not load a profile.
 
 The driver runs the tools from a pinned, read-only copy of an approved
 revision, never from the live checkout. Otherwise the implementer's
