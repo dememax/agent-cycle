@@ -19,7 +19,18 @@ def main() -> int:
     operation = sys.argv[1]
     argument = sys.argv[2]
     functions: dict[str, Any] = CODEXLOG
-    if operation == "canonical":
+    if operation == "profile":
+        try:
+            profile = functions["load_project_profile"]()
+        except functions["ProfileError"] as error:
+            print(f"profile-probe: configuration error: {error}", file=sys.stderr)
+            return 2
+        result = {
+            "name": profile.name,
+            "repository": str(profile.repository),
+            "state": str(profile.state),
+        }
+    elif operation == "canonical":
         result = functions["canonical"](argument)
     else:
         records = functions["records"](Path(argument))

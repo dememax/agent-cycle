@@ -163,7 +163,10 @@ def test_reports_codex_and_deduplicated_claude_cycles(
         encoding="utf-8",
     )
 
-    result = isolated_env.run([PYTHON, "-I", USAGE, transcript, turn_one])
+    result = isolated_env.run(
+        [PYTHON, "-I", USAGE, transcript, turn_one],
+        unset_env=("AGENT_CYCLE_PROFILE", "AGENT_CYCLE_REPO", "AGENT_CYCLE_STATE", "S0_STATE_DIR"),
+    )
 
     assert result.returncode == 0, result.stderr
     table_row = "| turn-001 | 80 → 20 (window reset) | 30 → 35 | 450 / 150 / 150 | 200 | 59 / 13 / 17 (2) | 42 |"

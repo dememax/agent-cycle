@@ -24,9 +24,14 @@ def run_probe(
     argument: str | Path,
     *,
     extra_env: dict[str, str] | None = None,
+    unset_env: tuple[str, ...] = (),
 ) -> tuple[int, str, str]:
     """Run one reader operation in an isolated Python process."""
-    result = isolated_env.run([PYTHON, "-I", PROBE, operation, argument], extra_env=extra_env)
+    result = isolated_env.run(
+        [PYTHON, "-I", PROBE, operation, argument],
+        extra_env=extra_env,
+        unset_env=unset_env,
+    )
     return result.returncode, result.stdout, result.stderr
 
 
@@ -166,16 +171,14 @@ def test_running_turns_pair_events_by_turn_id(isolated_env: IsolatedEnvironment,
     assert json.loads(stdout) == ["turn-two"]
 
 
-@pytest.mark.parametrize("variable", ["AGENT_CYCLE_REPO", "AGENT_CYCLE_STATE"])
-def test_project_selection_requires_absolute_paths(isolated_env: IsolatedEnvironment, variable: str) -> None:
-    """Either relative project-selection path aborts module initialization."""
+def test_import_does_not_load_a_project_profile(isolated_env: IsolatedEnvironment) -> None:
+    """Reader-only operations need neither a selector nor project settings."""
     returncode, stdout, stderr = run_probe(
         isolated_env,
         "canonical",
         "prompt",
-        extra_env={variable: "relative/path"},
+        unset_env=("AGENT_CYCLE_PROFILE", "AGENT_CYCLE_REPO", "AGENT_CYCLE_STATE", "S0_STATE_DIR"),
     )
 
-    assert returncode != 0
-    assert stdout == ""
-    assert f"{variable} must be an absolute path" in stderr
+    assert returncode == 0, stderr
+    assert json.loads(stdout) == "prompt"
