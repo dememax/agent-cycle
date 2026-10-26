@@ -51,8 +51,10 @@ def parse_object(text: str) -> dict[str, object]:
             object_pairs_hook=_unique_object,
             parse_constant=_finite_number,
         )
-    except json.JSONDecodeError as error:
-        raise StrictJSONError(str(error)) from error
+    except StrictJSONError:
+        raise
+    except Exception as error:
+        raise StrictJSONError(f"{type(error).__name__}: {error}") from error
     if not isinstance(value, dict):
         raise StrictJSONError("top-level JSON value is not an object")
     return cast("dict[str, object]", value)

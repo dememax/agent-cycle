@@ -444,20 +444,32 @@ if turn_error:
 final = msgs[-1] if msgs else ""
 open(f"{out}/final-reply.md", "w", encoding="utf-8").write(final)
 invalid: list[str] = []
+schema: dict[str, object] | None = None
+try:
+    candidate_schema = result_schema.parse_object(open(schema_path, encoding="utf-8").read())
+    result_schema.check_schema(candidate_schema)
+    schema = candidate_schema
+except result_schema.StrictJSONError as error:
+    invalid.append(f"schema JSON does not parse: {error}")
+except result_schema.SchemaError as error:
+    invalid.append(f"schema error: {error}")
+except Exception as error:
+    invalid.append(f"schema check failed: {type(error).__name__}: {error}")
 result: dict[str, object] | None
 try:
     result = result_schema.parse_object(final)
 except result_schema.StrictJSONError as error:
-    result, invalid = None, [f"JSON does not parse: {error}"]
+    result = None
+    invalid.append(f"JSON does not parse: {error}")
+except Exception as error:
+    result = None
+    invalid.append(f"result parse failed: {type(error).__name__}: {error}")
 if result is not None:
-    r = result
-    json.dump(r, open(f"{out}/result.json", "w", encoding="utf-8"), indent=2)
     try:
-        schema = result_schema.parse_object(open(schema_path, encoding="utf-8").read())
-        invalid += result_schema.validate_result(r, schema)
-    except result_schema.StrictJSONError as error:
-        invalid.append(f"schema JSON does not parse: {error}")
-    except result_schema.SchemaError as error:
-        invalid.append(f"schema error: {error}")
+        json.dump(result, open(f"{out}/result.json", "w", encoding="utf-8"), indent=2)
+        if schema is not None:
+            invalid += result_schema.validate(result, schema)
+    except Exception as error:
+        invalid.append(f"result check failed: {type(error).__name__}: {error}")
 print("result:", "valid" if not invalid else "INVALID: " + "; ".join(invalid))
 sys.exit((1 if esc_bad else 0) + (2 if invalid else 0) + (4 if turn_error else 0))
