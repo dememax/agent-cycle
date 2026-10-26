@@ -24,6 +24,7 @@ is outside the audit's detectable scope and must not be used.
 """
 
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -37,12 +38,10 @@ REPO = codexlog.CWD
 ALLOW = re.compile(r"^git(\s+-C\s+" + re.escape(REPO) + r"/?)?\s+(add|commit)\b")
 # A per-turn extension, decided by the user for one turn only, passed as a
 # regular expression in AUDIT_EXTRA_ALLOW (e.g. the prescribed release tag).
-import os
-
 EXTRA = re.compile(os.environ["AUDIT_EXTRA_ALLOW"]) if os.environ.get("AUDIT_EXTRA_ALLOW") else None
 
 
-def allowed(part):
+def allowed(part: str) -> bool:
     return bool(ALLOW.match(part) or (EXTRA and EXTRA.fullmatch(part)))
 
 
@@ -400,7 +399,9 @@ def function_escalations(raw: object) -> tuple[list[Escalation], list[str]]:
 
 
 esc_bad, msgs, reviewer, turn_error = [], [], None, None
-for line in open(log, encoding="utf-8").read().splitlines()[start:]:
+with open(log, encoding="utf-8") as log_file:
+    log_lines = log_file.read().splitlines()[start:]
+for line in log_lines:
     e = json.loads(line)
     p = e.get("payload") if isinstance(e.get("payload"), dict) else {}
     if e.get("type") == "turn_context":
@@ -442,11 +443,13 @@ if turn_error:
     # its own right, reported before the result check (exit 4).
     print(f"TURN ERROR: {turn_error[0]}: {turn_error[1][:200]}")
 final = msgs[-1] if msgs else ""
-open(f"{out}/final-reply.md", "w", encoding="utf-8").write(final)
+with open(f"{out}/final-reply.md", "w", encoding="utf-8") as reply_file:
+    reply_file.write(final)
 invalid: list[str] = []
 schema: dict[str, object] | None = None
 try:
-    candidate_schema = result_schema.parse_object(open(schema_path, encoding="utf-8").read())
+    with open(schema_path, encoding="utf-8") as schema_file:
+        candidate_schema = result_schema.parse_object(schema_file.read())
     result_schema.check_schema(candidate_schema)
     schema = candidate_schema
 except result_schema.StrictJSONError as error:
@@ -466,7 +469,8 @@ except Exception as error:
     invalid.append(f"result parse failed: {type(error).__name__}: {error}")
 if result is not None:
     try:
-        json.dump(result, open(f"{out}/result.json", "w", encoding="utf-8"), indent=2)
+        with open(f"{out}/result.json", "w", encoding="utf-8") as result_file:
+            json.dump(result, result_file, indent=2)
         if schema is not None:
             invalid += result_schema.validate(result, schema)
     except Exception as error:

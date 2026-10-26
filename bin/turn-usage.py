@@ -29,6 +29,7 @@ import math
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, cast
 
 
 def local_time(path: Path) -> datetime | None:
@@ -73,7 +74,7 @@ def codex_usage(log: Path, start_line: int) -> dict[str, object]:
                 if usable:
                     end = limits
 
-    def pct(limits: dict | None, key: str) -> float | None:
+    def pct(limits: dict[str, Any] | None, key: str) -> float | None:
         return None if not limits or not limits.get(key) else limits[key]["used_percent"]
 
     delta = {}
@@ -97,7 +98,7 @@ def codex_usage(log: Path, start_line: int) -> dict[str, object]:
 
 
 def claude_usage(transcript: Path, since: datetime | None, until: datetime | None) -> dict[str, object]:
-    seen: dict[str, dict] = {}
+    seen: dict[str, dict[str, Any]] = {}
     with transcript.open(encoding="utf-8") as stream:
         for line in stream:
             try:
@@ -122,7 +123,7 @@ def claude_usage(transcript: Path, since: datetime | None, until: datetime | Non
         for u in seen.values()
     )
     keys = ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens")
-    totals = {k: sum(int(u.get(k) or 0) for u in seen.values()) for k in keys}
+    totals: dict[str, Any] = {k: sum(int(u.get(k) or 0) for u in seen.values()) for k in keys}
     totals["messages"] = len(seen)
     totals["median_context_per_message"] = contexts[len(contexts) // 2] if contexts else None
     cached = {}
@@ -409,9 +410,10 @@ def main() -> int:
         "renewal": renewal,
     }
     (turn / "usage.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
-    t = codex["tokens"]
-    c = claude["tokens"]
-    b, a = codex["five_hour_before"], codex["five_hour_after"]
+    t = cast("dict[str, Any]", codex["tokens"])
+    c = cast("dict[str, Any]", claude["tokens"])
+    b = cast("int | float | None", codex["five_hour_before"])
+    a = cast("int | float | None", codex["five_hour_after"])
     reset = " (window reset)" if b is not None and a is not None and a < b else ""
     print(
         f"| {turn.name} | {fmt(b)} → {fmt(a)}{reset}"
