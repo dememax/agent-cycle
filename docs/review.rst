@@ -20,9 +20,10 @@ Reproduce, do not trust
    implementer reviews the driver's text read-only, at a named commit in
    the shared checkout, and changes nothing. When HEAD moves during a
    review, compare trees before carrying a verdict over.
-3. Check each RED: it fails at the declared tests, as an assertion, for
-   the intended reason. A GREEN that edits its RED's assertions must say
-   so.
+3. Check each RED: it fails at the declared tests, with the declared
+   ``assertion`` or test-body ``exception`` failure kind, for the intended
+   reason. A collection or setup error is not a RED. A GREEN that edits
+   its RED's assertions must say so.
 4. Check commit messages against the diff, including the trailer and
    the author identity. A false claim in a message is a finding.
 5. Validate your own fixtures before reporting from them. An invalid

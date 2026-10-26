@@ -64,7 +64,7 @@ practices.
 |---|---|
 | `bin/codex-identify-thread.py` | Identify a newly created visible Codex chat by its first message, fail-closed, and check its settings against the previous chat's |
 | `bin/codex-queue-turn.sh` | Queue one turn into the single active chat, under a lock, refusing on any mismatch; implemented in `codex-queue-turn.py` |
-| `bin/audit-turn.py` | After a turn: list escalated commands, extract the final message, check its top-level keys and enum values against a result schema |
+| `bin/audit-turn.py` | After a turn: list escalated commands, require the final message to be one strict JSON object, and validate it recursively against a result schema |
 | `bin/github-snapshot.sh` | Snapshot the HEAD, refs and status of each repository under `~/github/*/` and `~/github/*/*/`, failing closed on an incomplete Git query |
 | `bin/turn-usage.py` | Per-turn usage of both agents: tokens, context per call, rate-limit windows (best-effort: malformed lines are skipped) |
 | `bin/codexlog.py` | The strict log reader the tools share |

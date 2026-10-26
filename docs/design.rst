@@ -33,8 +33,8 @@ Principles
 
 1. Files and Git are authoritative. What an agent reports is a list of
    claims to verify, never state. A final message must be one JSON object
-   in its schema's shape; the audit checks part of that mechanically, and
-   the reviewer reads the rest (Contracts, below).
+   in its schema's shape; the audit checks that shape mechanically, and
+   the reviewer verifies its claims (Contracts, below).
 2. No conclusion on its author's word. The implementer's commits are
    reviewed by the driver, and the driver's plans and verdicts by the
    implementer.
@@ -67,7 +67,11 @@ Every turn ends with exactly one JSON object, and nothing around it.
   - ``status``: ``ready_for_review``, ``blocked`` or ``needs_user``;
   - the work item, the plan revision and the base commit;
   - every commit, with its role (``red``, ``green`` or ``single``);
-  - for a RED, the runner and the exact test node IDs expected to fail;
+  - for a RED, the runner, the exact test node IDs expected to fail and
+    the failure kind: ``assertion`` when every node fails on an
+    ``AssertionError``, or ``exception`` when a call in the test body
+    raises another exception that the GREEN removes. A collection or
+    setup error is not an acceptable RED;
   - whether behaviour changed, and whether the GREEN edited its RED's
     assertions;
   - the validation claimed, and a report.
@@ -80,11 +84,15 @@ Every turn ends with exactly one JSON object, and nothing around it.
 A review turn has no ``blocked``: its stop is ``needs_user`` with a
 ``blocker`` finding that names the condition.
 
-The audit checks a subset of the contract mechanically. It takes the span
-from the final message's first ``{`` to its last ``}``, parses it as JSON,
-and checks the schema's top-level required keys, unknown top-level keys and
-top-level enum values. It does not check types, nested fields, or that
-nothing surrounds the object; the reviewer reads the whole result.
+The audit requires the complete final message, apart from surrounding
+whitespace, to be one JSON object. It rejects duplicate keys and non-finite
+numbers, then recursively validates the object against the selected schema.
+Its JSON Schema subset is exactly ``type``, ``enum``, ``required``,
+``properties``, ``additionalProperties: false``, ``items`` and ``anyOf``;
+an unimplemented keyword anywhere in the schema makes the audit refuse it.
+The schemas constrain structure and enumerated values, not the truth of the
+reported commits, failures or validation. The reviewer verifies those
+claims.
 
 ********
 Guards

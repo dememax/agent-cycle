@@ -78,11 +78,12 @@ After the turn
 2. Audit: ``bin/audit-turn.py THREAD_LOG START_LINE SCHEMA TURN_DIR``.
    Its exit status is a set of bits: 1 for an escalation outside the
    allowlist, or one it cannot parse unambiguously within its scope
-   (:doc:`design`, Guards); 2 for a final message with no JSON object, or
-   whose object fails the top-level checks (:doc:`design`, Contracts); 4
+   (:doc:`design`, Guards); 2 for a final message that is not exactly one
+   strict JSON object, whose object fails recursive schema validation, or
+   whose schema uses an unsupported keyword (:doc:`design`, Contracts); 4
    for a turn that ended on an error, such as a usage limit. It always
-   writes ``final-reply.md``, and ``result.json`` when the extracted span
-   parses as JSON.
+   writes ``final-reply.md``, and ``result.json`` only when the complete
+   message parses as one JSON object.
 3. Require ``bin/github-snapshot.sh`` to exit zero, then compare
    ``snapshot-after.txt`` with ``snapshot-before.txt``. Only the project's
    HEAD and status may have changed. The extension's ``refs/codex/`` turn
@@ -122,6 +123,6 @@ The turn directory
      - when the turn completed
    * - ``audit.txt``, ``final-reply.md``, ``result.json``
      - the audit and the final message; ``result.json`` only when the
-       extracted span parses as JSON
+       complete message parses as one JSON object
    * - ``usage.json``, ``usage-row.txt``
      - both agents' usage for the turn

@@ -11,8 +11,9 @@ Reads the rollout log from START_LINE, and:
   flags any that is not `git add` / `git commit` inside the selected
   project's repository (codexlog.CWD);
 - saves the turn's final assistant message to OUT_DIR/final-reply.md and,
-  if it parses as one JSON object, to OUT_DIR/result.json, then checks the
-  schema's required keys, extra keys and enum values.
+  if the complete message parses as one strict JSON object, to
+  OUT_DIR/result.json, then validates it recursively against the supported
+  subset of the selected schema.
 Exit status (bit flags): 1 escalation outside the allowlist, 2 result
 invalid, 4 the turn ended on an error (e.g. usage_limit_exceeded); 0 clean.
 
@@ -29,6 +30,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import codexlog
+import result_schema
 
 log, start, schema_path, out = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
 REPO = codexlog.CWD
@@ -441,21 +443,21 @@ if turn_error:
     print(f"TURN ERROR: {turn_error[0]}: {turn_error[1][:200]}")
 final = msgs[-1] if msgs else ""
 open(f"{out}/final-reply.md", "w", encoding="utf-8").write(final)
-invalid = []
-m = re.search(r"\{.*\}", final, re.S)
+invalid: list[str] = []
+result: dict[str, object] | None
 try:
-    r = json.loads(m.group(0)) if m else None
-except json.JSONDecodeError as exc:
-    r, invalid = None, [f"JSON does not parse: {exc}"]
-if r is None and not invalid:
-    invalid = ["no JSON object in the final message"]
-if r is not None:
+    result = result_schema.parse_object(final)
+except result_schema.StrictJSONError as error:
+    result, invalid = None, [f"JSON does not parse: {error}"]
+if result is not None:
+    r = result
     json.dump(r, open(f"{out}/result.json", "w", encoding="utf-8"), indent=2)
-    sch = json.load(open(schema_path, encoding="utf-8"))
-    invalid += [f"missing {k}" for k in sch["required"] if k not in r]
-    invalid += [f"extra {k}" for k in r if k not in sch["properties"]]
-    for k, spec in sch["properties"].items():
-        if "enum" in spec and k in r and r[k] not in spec["enum"]:
-            invalid.append(f"{k}={r[k]!r} not in enum")
+    try:
+        schema = result_schema.parse_object(open(schema_path, encoding="utf-8").read())
+        invalid += result_schema.validate_result(r, schema)
+    except result_schema.StrictJSONError as error:
+        invalid.append(f"schema JSON does not parse: {error}")
+    except result_schema.SchemaError as error:
+        invalid.append(f"schema error: {error}")
 print("result:", "valid" if not invalid else "INVALID: " + "; ".join(invalid))
 sys.exit((1 if esc_bad else 0) + (2 if invalid else 0) + (4 if turn_error else 0))

@@ -45,7 +45,7 @@
             "runner": { "type": "string", "enum": ["pytest"] },
             "selectors": { "type": "array", "items": { "type": "string" } },
             "expected_failing": { "type": "array", "items": { "type": "string" } },
-            "failure_kind": { "type": "string", "enum": ["assertion"] }
+            "failure_kind": { "type": "string", "enum": ["assertion", "exception"] }
           }
         }
       ]
