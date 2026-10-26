@@ -23,15 +23,29 @@ class ProfileError(ValueError):
 
 
 @dataclass(frozen=True)
+class ValidationStep:
+    """One shell-free validation command from a version-2 profile."""
+
+    name: str
+    arguments: tuple[str, ...]
+    environment: tuple[tuple[str, str], ...]
+    pytest: bool
+    always_show: bool
+    require_clean: bool
+
+
+@dataclass(frozen=True)
 class ProjectProfile:
-    """The version-1 project settings used by the stateful tools."""
+    """Project paths and optional version-2 validation commands."""
 
     name: str
     repository: Path
     state: Path
+    validation: tuple[ValidationStep, ...] = ()
 
 
 PROFILE_KEYS = frozenset(("profile_version", "name", "repository", "state"))
+VALIDATION_KEYS = frozenset(("name", "arguments", "environment", "pytest", "always_show", "require_clean"))
 RETIRED_PROFILE_VARIABLES = ("AGENT_CYCLE_REPO", "AGENT_CYCLE_STATE", "S0_STATE_DIR")
 
 
@@ -60,8 +74,73 @@ def _profile_value_path(profile_path: Path, key: str, value: object) -> Path:
     return path
 
 
+def _validation_flag(profile_path: Path, index: int, step: dict[str, Any], key: str) -> bool:
+    """Read one optional boolean validation flag without accepting integers."""
+    value = step.get(key, False)
+    if type(value) is not bool:
+        raise ProfileError(f"{profile_path}: validation[{index}].{key}: expected a boolean")
+    return value
+
+
+def _validation_steps(profile_path: Path, value: object) -> tuple[ValidationStep, ...]:
+    """Validate the exact version-2 validation-step grammar."""
+    if not isinstance(value, list) or not value:
+        raise ProfileError(f"{profile_path}: validation: expected a non-empty array of tables")
+    parsed = []
+    names: set[str] = set()
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            raise ProfileError(f"{profile_path}: validation[{index}]: expected a table")
+        unknown = item.keys() - VALIDATION_KEYS
+        if unknown:
+            key = sorted(unknown)[0]
+            raise ProfileError(f"{profile_path}: validation[{index}].{key}: unknown key")
+        for key in ("name", "arguments"):
+            if key not in item:
+                raise ProfileError(f"{profile_path}: validation[{index}].{key}: missing required key")
+        name = item["name"]
+        if not isinstance(name, str) or not name:
+            raise ProfileError(f"{profile_path}: validation[{index}].name: expected a non-empty string")
+        if name in names:
+            raise ProfileError(f"{profile_path}: validation[{index}].name: duplicate name {name!r}")
+        names.add(name)
+        arguments = item["arguments"]
+        if (
+            not isinstance(arguments, list)
+            or not arguments
+            or any(not isinstance(argument, str) or not argument for argument in arguments)
+        ):
+            raise ProfileError(
+                f"{profile_path}: validation[{index}].arguments: expected a non-empty array of non-empty strings"
+            )
+        environment = item.get("environment", {})
+        if not isinstance(environment, dict) or any(
+            not isinstance(key, str)
+            or not key
+            or "=" in key
+            or "\0" in key
+            or not isinstance(environment_value, str)
+            or "\0" in environment_value
+            for key, environment_value in environment.items()
+        ):
+            raise ProfileError(
+                f"{profile_path}: validation[{index}].environment: expected valid string environment entries"
+            )
+        parsed.append(
+            ValidationStep(
+                name=name,
+                arguments=tuple(arguments),
+                environment=tuple(environment.items()),
+                pytest=_validation_flag(profile_path, index, item, "pytest"),
+                always_show=_validation_flag(profile_path, index, item, "always_show"),
+                require_clean=_validation_flag(profile_path, index, item, "require_clean"),
+            )
+        )
+    return tuple(parsed)
+
+
 def load_project_profile() -> ProjectProfile:
-    """Load the required exact version-1 profile selected by the environment."""
+    """Load the required exact version-1 or version-2 selected profile."""
     for variable in RETIRED_PROFILE_VARIABLES:
         if variable in os.environ:
             raise ProfileError(f"{variable}: retired; unset it and use AGENT_CYCLE_PROFILE")
@@ -78,17 +157,20 @@ def load_project_profile() -> ProjectProfile:
         raise ProfileError(f"{profile_path}: profile: cannot read ({error})") from None
     except tomllib.TOMLDecodeError as error:
         raise ProfileError(f"{profile_path}: profile: invalid TOML ({error})") from None
-    missing = PROFILE_KEYS - profile.keys()
+    if "profile_version" not in profile:
+        raise ProfileError(f"{profile_path}: profile_version: missing required key")
+    version = profile["profile_version"]
+    if type(version) is not int or version not in (1, 2):
+        raise ProfileError(f"{profile_path}: profile_version: expected integer 1 or 2")
+    keys = PROFILE_KEYS if version == 1 else PROFILE_KEYS | {"validation"}
+    missing = keys - profile.keys()
     if missing:
         key = sorted(missing)[0]
         raise ProfileError(f"{profile_path}: {key}: missing required key")
-    unknown = profile.keys() - PROFILE_KEYS
+    unknown = profile.keys() - keys
     if unknown:
         key = sorted(unknown)[0]
         raise ProfileError(f"{profile_path}: {key}: unknown key")
-    version = profile["profile_version"]
-    if type(version) is not int or version != 1:
-        raise ProfileError(f"{profile_path}: profile_version: expected integer 1")
     name = profile["name"]
     if not isinstance(name, str) or not name:
         raise ProfileError(f"{profile_path}: name: expected a non-empty string")
@@ -96,6 +178,7 @@ def load_project_profile() -> ProjectProfile:
         name=name,
         repository=_profile_value_path(profile_path, "repository", profile["repository"]),
         state=_profile_value_path(profile_path, "state", profile["state"]),
+        validation=_validation_steps(profile_path, profile["validation"]) if version == 2 else (),
     )
 
 
