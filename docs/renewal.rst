@@ -34,7 +34,10 @@ When to renew
 - A release or work-package boundary is the preferred moment to act on a
   triggered renewal, not a trigger by itself.
 
-``bin/turn-usage.py`` prints both medians for every turn.
+``bin/turn-usage.py`` records the compaction buckets, peak Codex context
+pressure and both medians, then reports the immediate, consecutive-turn and
+third-compaction triggers. Its ``notes`` preserve any fact that could not be
+determined instead of treating it as no trigger.
 
 *****************
 The quiet point

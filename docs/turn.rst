@@ -95,11 +95,12 @@ After the turn
 5. Review the result by reproducing it (:doc:`review`).
 6. Record the turn: times, commits, audit, snapshots, the review's
    findings and verdict.
-7. Usage: ``bin/turn-usage.py CLAUDE_TRANSCRIPT PREVIOUS_TURN_DIR
-   TURN_DIR`` writes ``usage.json`` into each directory it is given and
-   prints a row for each; the last row is the current turn's. The previous
-   turn's end is where the driver's cycle for the current turn begins
-   (:doc:`tokens`).
+7. Usage: ``bin/turn-usage.py CLAUDE_TRANSCRIPT --previous
+   PREVIOUS_TURN_DIR TURN_DIR`` writes ``usage.json`` only into ``TURN_DIR``
+   and prints its table row and renewal facts. ``PREVIOUS_TURN_DIR`` is
+   read-only; its end is where the driver's cycle for the current turn
+   begins. Without ``--previous``, that window starts at ``TURN_DIR``'s
+   ``started`` time (:doc:`tokens`).
 
 ********************
 The turn directory
@@ -125,4 +126,4 @@ The turn directory
      - the audit and the final message; ``result.json`` only when the
        complete message parses as one JSON object
    * - ``usage.json``, ``usage-row.txt``
-     - both agents' usage for the turn
+     - both agents' usage and the renewal facts for the turn

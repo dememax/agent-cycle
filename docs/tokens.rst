@@ -41,8 +41,10 @@ Habits that follow
 Measuring
 ***********
 
-``bin/turn-usage.py`` writes ``usage.json`` for each turn and prints one
-row:
+``bin/turn-usage.py CLAUDE_TRANSCRIPT [--previous PREVIOUS_TURN_DIR]
+TURN_DIR`` writes ``usage.json`` only for ``TURN_DIR``. The optional previous
+turn is read-only. It prints the existing table row followed by one
+``renewal:`` line:
 
 The implementer
    The 5-hour and weekly ``used_percent`` before and after the turn (a
@@ -51,8 +53,18 @@ The implementer
 
 The driver
    The tokens of its own messages over the cycle, from the end of the
-   previous turn to the end of this one, deduplicated by message ID, and
-   its median context per message, from its transcript.
+   previous turn to the end of this one, deduplicated by message ID, and its
+   median context per message, from its transcript. Without ``--previous``,
+   the window begins at this turn's ``started`` time. ``usage.json`` records
+   which source was used.
+
+Renewal
+   Compaction line numbers inside the turn, between turns and across the
+   thread; the largest per-call Codex input, the latest context window and
+   their percentage; both medians; and the resulting renewal triggers. The
+   consecutive-median rules read the previous turn's ``usage.json``. A fact
+   that cannot be established is ``null`` and is explained in ``notes``;
+   unknown evidence is never reported as an empty trigger condition.
 
 A usage limit on either agent is an incident (:doc:`design`). Before
 queueing, the driver compares the remaining 5-hour allowance with what
