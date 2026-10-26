@@ -44,6 +44,17 @@ def function_call(arguments: object) -> dict[str, object]:
     return record("response_item", {"type": "function_call", "arguments": raw})
 
 
+def escalated_function_call(command: str, workdir: str) -> dict[str, object]:
+    """Build one structurally encoded escalated command."""
+    return function_call(
+        {
+            "cmd": command,
+            "workdir": workdir,
+            "sandbox_permissions": "require_escalated",
+        }
+    )
+
+
 def assistant_message(text: str | list[dict[str, str]]) -> dict[str, object]:
     """Build an assistant response item eligible as the final message."""
     return record("response_item", {"type": "message", "role": "assistant", "content": text})
@@ -215,6 +226,168 @@ def test_extra_allow_requires_full_part_match(isolated_env: IsolatedEnvironment,
     )
     assert code == 1
     assert "ESCALATION BAD" in stdout
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git commit -m x\ngit push origin main",
+        "git commit -m x\rgit push origin main",
+        "git commit -m x | sh",
+        "git commit -m x & git push origin main",
+        'git commit -m "$(git push origin main)"',
+        "git commit -m `git push origin main`",
+        "git add . > /tmp/generated",
+        "git add . < /tmp/generated",
+        "(git add generated)",
+        "git commit -m 'unterminated",
+        "git commit-tree HEAD^{tree} -m generated",
+    ],
+    ids=[
+        "newline",
+        "carriage-return",
+        "pipe",
+        "background",
+        "command-substitution",
+        "backtick",
+        "output-redirection",
+        "input-redirection",
+        "parentheses",
+        "unterminated-quote",
+        "commit-tree",
+    ],
+)
+def test_shell_metacharacter_escalations_are_flagged(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    command: str,
+) -> None:
+    """Operators, expansions and unclassifiable shell text fail closed."""
+    code, stdout, _stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(escalated_function_call(command, str(isolated_env.repo))),
+    )
+
+    assert code == 1
+    assert "ESCALATION BAD" in stdout
+
+
+def test_escalation_display_escapes_control_characters(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """A command cannot forge an extra audit-output line."""
+    command = "git commit -m generated\ngit push origin main"
+
+    code, stdout, _stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(escalated_function_call(command, str(isolated_env.repo))),
+    )
+
+    assert code == 1
+    assert "git commit -m generated\\ngit push origin main" in stdout
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "git commit --amend -F generated",
+        "git commit --am -F generated",
+        "git commit --ame -F generated",
+        "git commit --amen -F generated",
+        "git commit -F generated --amend",
+        "git add generated && git commit --amend -F generated",
+        "git -C {repo} commit --amend -F generated",
+    ],
+    ids=["full", "prefix-am", "prefix-ame", "prefix-amen", "after-message", "chain", "explicit-repository"],
+)
+def test_amend_escalations_require_exact_authorization(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    command: str,
+) -> None:
+    """History-rewriting commit forms require a per-turn exception."""
+    resolved = command.format(repo=isolated_env.repo)
+
+    code, stdout, _stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(escalated_function_call(resolved, str(isolated_env.repo))),
+    )
+
+    assert code == 1
+    assert "ESCALATION BAD" in stdout
+
+
+def test_exact_extra_allow_authorizes_amend_only_without_metacharacters(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """The per-turn exception is exact and never overrides shell safety."""
+    command = "git commit --amend -F generated"
+    call = completed_log(escalated_function_call(command, str(isolated_env.repo)))
+
+    code, stdout, stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        call,
+        extra_env={"AUDIT_EXTRA_ALLOW": command},
+        name="exact-amend",
+    )
+    assert code == 0, stderr
+    assert "ESCALATION ok" in stdout
+
+    code, stdout, _stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        call,
+        extra_env={"AUDIT_EXTRA_ALLOW": "git commit --amend -F other"},
+        name="wrong-amend",
+    )
+    assert code == 1
+    assert "ESCALATION BAD" in stdout
+
+    unsafe = command + " | sh"
+    code, stdout, _stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(escalated_function_call(unsafe, str(isolated_env.repo))),
+        extra_env={"AUDIT_EXTRA_ALLOW": ".*"},
+        name="unsafe-amend",
+    )
+    assert code == 1
+    assert "ESCALATION BAD" in stdout
+
+
+@pytest.mark.parametrize(
+    ("command", "workdir"),
+    [
+        ("git add generated-a generated-b && git commit -F /tmp/generated-message", "repo"),
+        ("git -C {repo}/ commit -F generated", "other"),
+        ("git commit -m 'text containing | and $HOME'", "repo"),
+    ],
+    ids=["chain", "explicit-repository", "single-quoted-metacharacters"],
+)
+def test_shell_tokenizer_accepts_only_legitimate_forms(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    command: str,
+    workdir: str,
+) -> None:
+    """The allowed grammar retains chains, -C and quoted message text."""
+    resolved = command.format(repo=isolated_env.repo)
+    resolved_workdir = str(isolated_env.repo) if workdir == "repo" else str(tmp_path / workdir)
+
+    code, stdout, stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(escalated_function_call(resolved, resolved_workdir)),
+    )
+
+    assert code == 0, stderr
+    assert "ESCALATION ok" in stdout
 
 
 @pytest.mark.parametrize("final", ['{"status":"wrong"}', None])
