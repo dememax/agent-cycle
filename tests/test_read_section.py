@@ -120,7 +120,7 @@ def test_rst_adornment_order_defines_section_levels(tmp_path: Path) -> None:
     result = run_reader(document, "Record")
     assert result.returncode == 0, result.stderr
     assert result.stdout == document.read_bytes()
-    assert result.stderr == f"{document}:1-19\n".encode()
+    assert result.stderr == f"{document}:1-18\n".encode()
 
 
 def test_ambiguous_heading_fails_with_line_numbers(tmp_path: Path) -> None:
