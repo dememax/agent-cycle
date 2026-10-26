@@ -7,6 +7,8 @@ from __future__ import annotations
 import os
 import re
 import shutil
+import signal
+import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
@@ -14,7 +16,6 @@ import pytest
 from .conftest import ROOT, IsolatedEnvironment
 
 if TYPE_CHECKING:
-    import subprocess
     from collections.abc import Sequence
     from pathlib import Path
 
@@ -94,6 +95,37 @@ os.execv(real_git, [real_git, *arguments])
     return wrapper
 
 
+def blocking_git(isolated_env: IsolatedEnvironment) -> Path:
+    """Put a generated Git delegate with a FIFO-controlled blocking step on PATH."""
+    directory = isolated_env.home / "blocking-bin"
+    directory.mkdir()
+    wrapper = directory / "git"
+    wrapper.write_text(
+        """#!/usr/bin/env python3.14
+import os
+import sys
+
+arguments = sys.argv[1:]
+repository = arguments[arguments.index("-C") + 1] if "-C" in arguments else ""
+if (
+    repository == os.environ["SNAPSHOT_BLOCK_REPO"]
+    and "rev-parse" in arguments
+    and any(argument.startswith("HEAD") for argument in arguments)
+):
+    with open(os.environ["SNAPSHOT_READY_FIFO"], "w", encoding="ascii") as ready:
+        ready.write("ready\\n")
+        ready.flush()
+    with open(os.environ["SNAPSHOT_RELEASE_FIFO"], encoding="ascii") as release:
+        release.read(1)
+real_git = os.environ["SNAPSHOT_REAL_GIT"]
+os.execv(real_git, [real_git, *arguments])
+""",
+        encoding="utf-8",
+    )
+    wrapper.chmod(0o755)
+    return wrapper
+
+
 def snapshot_result(
     isolated_env: IsolatedEnvironment,
     *,
@@ -114,6 +146,66 @@ def snapshot_result(
             "SNAPSHOT_GIT_ERROR": "generated Git diagnostic that must stay hidden",
         }
     return isolated_env.run([SNAPSHOT], extra_env=extra_env)
+
+
+@pytest.mark.parametrize("signal_number", [signal.SIGHUP, signal.SIGINT, signal.SIGQUIT, signal.SIGTERM])
+def test_snapshot_signal_exits_and_removes_temporary_file(
+    isolated_env: IsolatedEnvironment,
+    signal_number: signal.Signals,
+) -> None:
+    """An interrupted Git step cannot continue into a complete-looking snapshot."""
+    blocked = isolated_env.home / "github" / "a-blocked"
+    not_reached = isolated_env.home / "github" / "z-not-reached"
+    initialize(isolated_env, blocked, commit=True)
+    initialize(isolated_env, not_reached, commit=True)
+    temporary_directory = isolated_env.home.parent / "tmp"
+    temporary_directory.mkdir()
+    ready_fifo = isolated_env.home.parent / "ready.fifo"
+    release_fifo = isolated_env.home.parent / "release.fifo"
+    os.mkfifo(ready_fifo)
+    os.mkfifo(release_fifo)
+    wrapper = blocking_git(isolated_env)
+    real_git = shutil.which("git")
+    assert real_git is not None
+    environment = isolated_env.variables | {
+        "PATH": str(wrapper.parent) + os.pathsep + isolated_env.variables["PATH"],
+        "SNAPSHOT_REAL_GIT": real_git,
+        "SNAPSHOT_BLOCK_REPO": str(blocked),
+        "SNAPSHOT_READY_FIFO": str(ready_fifo),
+        "SNAPSHOT_RELEASE_FIFO": str(release_fifo),
+        "TMPDIR": str(temporary_directory),
+    }
+
+    process = subprocess.Popen(
+        [SNAPSHOT],
+        env=environment,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    with ready_fifo.open(encoding="ascii") as ready:
+        assert ready.readline() == "ready\n"
+    process.send_signal(signal_number)
+    with release_fifo.open("w", encoding="ascii") as release:
+        release.write("x")
+    stdout, _stderr = process.communicate(timeout=10)
+
+    assert process.returncode == 128 + signal_number
+    assert str(not_reached) not in stdout
+    assert not list(temporary_directory.glob("agent-cycle-snapshot.*"))
+
+
+def test_snapshot_normal_run_removes_temporary_file(isolated_env: IsolatedEnvironment) -> None:
+    """The EXIT trap removes its temporary file after a complete snapshot."""
+    repo = isolated_env.home / "github" / "complete"
+    initialize(isolated_env, repo, commit=True)
+    temporary_directory = isolated_env.home.parent / "tmp"
+    temporary_directory.mkdir()
+
+    result = isolated_env.run([SNAPSHOT], extra_env={"TMPDIR": str(temporary_directory)})
+
+    assert result.returncode == 0, result.stderr
+    assert not list(temporary_directory.glob("agent-cycle-snapshot.*"))
 
 
 @pytest.mark.parametrize(
