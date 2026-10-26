@@ -107,7 +107,9 @@ After the turn
    incident. Stop and tell the person. The driver may establish the facts
    first, for example that a flagged call only wrote a test fixture, but the
    person decides how work resumes.
-5. Review the result by reproducing it (:doc:`review`).
+5. Run ``bin/validate.py --base BASE`` with the project's selected profile;
+   it runs every declared check once and retains each check's raw output.
+   Review the result by reproducing it (:doc:`review`).
 6. Usage: ``bin/turn-usage.py CLAUDE_TRANSCRIPT --previous
    PREVIOUS_TURN_DIR TURN_DIR`` writes ``usage.json`` only into ``TURN_DIR``
    and prints its table row and renewal facts. ``PREVIOUS_TURN_DIR`` is

@@ -2,7 +2,20 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Project profile for agent-cycle — agent-cycle project
 
-profile_version = 1
+profile_version = 2
 name = "agent-cycle"
 repository = "~/github/agent-cycle"
 state = "~/.local/state/agent-cycle/agent-cycle"
+
+[[validation]]
+name = "pytest"
+arguments = ["python3.14", "-m", "pytest"]
+pytest = true
+
+[[validation]]
+name = "check_formatting"
+arguments = ["check_formatting", "--all"]
+
+[[validation]]
+name = "git diff --check"
+arguments = ["git", "diff", "--check", "{base}..HEAD"]

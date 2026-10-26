@@ -2,7 +2,54 @@
 # SPDX-License-Identifier: GPL-3.0-only
 # Project profile for check_rst — agent-cycle project
 
-profile_version = 1
+profile_version = 2
 name = "check_rst"
 repository = "~/github/check_rst"
 state = "~/.local/state/agent-cycle/check_rst"
+
+[[validation]]
+name = "pytest"
+arguments = ["python3.14", "-m", "pytest"]
+pytest = true
+
+[[validation]]
+name = "ruff format"
+arguments = ["ruff", "format", "--check", "--no-cache", "src", "tests", "tools"]
+
+[[validation]]
+name = "ruff check"
+arguments = ["ruff", "check", "--no-cache", "src", "tests", "tools"]
+
+[[validation]]
+name = "mypy"
+arguments = [
+  "~/.local/state/agent-cycle/check_rst/envs/mypy-2.2.0-stubs-0.23/bin/python",
+  "-m",
+  "mypy",
+  "src",
+  "tests",
+  "tools",
+]
+
+[[validation]]
+name = "check_rst check --skip-fixable"
+arguments = ["python3.14", "-m", "check_rst", "check", "--skip-fixable"]
+environment = { PYTHONPATH = "src" }
+always_show = true
+
+[[validation]]
+name = "check_rst fix --fast"
+arguments = ["python3.14", "-m", "check_rst", "fix", "--fast"]
+environment = { PYTHONPATH = "src" }
+always_show = true
+require_clean = true
+
+[[validation]]
+name = "check_rst check"
+arguments = ["python3.14", "-m", "check_rst", "check"]
+environment = { PYTHONPATH = "src" }
+always_show = true
+
+[[validation]]
+name = "git diff --check"
+arguments = ["git", "diff", "--check", "{base}..HEAD"]

@@ -83,30 +83,26 @@ lines: the formatting rules target Python 3.14 syntax. Ruff 0.16.9 and
 ShellCheck are system executables; mypy is 2.2.0. Prettier is pinned in
 `package.json`: run `npm install --ignore-scripts` once after cloning.
 
-Every check is declared in `.check_formatting.toml` and runs through
-[check_formatting](https://github.com/dememax/check_formatting):
+The project profile declares the full ordered validation, including every
+check in `.check_formatting.toml`. Run it once through the validation runner:
 
 ```bash
-python3.14 -m pytest
-check_formatting --all
+AGENT_CYCLE_PROFILE="$PWD/profiles/agent-cycle.toml" \
+  python3.14 bin/validate.py --base BASE
 ```
 
-The pytest suite uses only generated logs and isolates every subprocess from
-the real Codex home, CLI, repositories and state. `check_formatting --all`
-runs Ruff (format and lint), mypy, check_rst on `docs/`, ShellCheck and
-Prettier. check_rst reads `.check_rst.toml` and therefore also builds the
-documentation with Sphinx: any Sphinx warning or error in a checked file fails
-the check. Fix findings in the code or the documents; do not weaken a
-configuration to obtain a clean run. A remaining suppression is the narrowest
-error-code-specific form, with its reason.
+The runner retains every step's raw output and prints failures in full. The
+pytest suite uses only generated logs and isolates every subprocess from the
+real Codex home, CLI, repositories and state. `check_formatting --all` runs
+Ruff (format and lint), mypy, check_rst on `docs/`, ShellCheck and Prettier.
+check_rst reads `.check_rst.toml` and therefore also builds the documentation
+with Sphinx: any Sphinx warning or error in a checked file fails the check. Fix
+findings in the code or the documents; do not weaken a configuration to obtain
+a clean run. A remaining suppression is the narrowest error-code-specific
+form, with its reason.
 
-**Known debt at the import:** formatting is clean (Ruff format, Prettier,
-check_rst). The tools still have semantic findings, to be fixed as
-behavior-preserving work in the first work package:
-- Ruff: 7 (4 `SIM115`, files opened without a context manager; 1 `E402`;
-  2 missing annotations, `ANN001` and `ANN201`), all in `bin/audit-turn.py`;
-- mypy: 26 errors in 5 files;
-- ShellCheck: 1 `SC2312` in `bin/codex-queue-turn.sh`.
+**Current state:** Ruff, mypy, ShellCheck, Prettier and check_rst are clean;
+`LINT-1` cleared the semantic findings inherited at import.
 
 After an RST edit, run check_rst's loop on `docs/` (`check --skip-fixable`,
 `fix --fast`, `check`) and review its semantic warnings.

@@ -71,6 +71,7 @@ practices.
 | `bin/turn-usage.py` | One turn's usage and renewal facts for both agents; an optional previous turn is read-only (best-effort: malformed lines are skipped) |
 | `bin/read-section.py` | Read one Markdown or reStructuredText section exactly, refusing missing or ambiguous headings and invalid inputs |
 | `bin/turn-record.py` | Generate the factual Markdown skeleton of a turn record from its evidence directory, without guessing missing facts |
+| `bin/validate.py` | Run a project's ordered validation steps once, retain their raw output, and print a compact complete summary |
 | `bin/codexlog.py` | The strict log reader the tools share |
 | `tools/check-public.sh` | Fail closed on protected patterns in the content and metadata a push would publish |
 | `tools/pre-push` | Tracked Git hook that applies the public-content gate to proposed ref updates |
@@ -185,15 +186,23 @@ A version-1 profile has exactly these required keys:
 
 | Key | Meaning |
 |---|---|
-| `profile_version = 1` | the exact profile format version |
+| `profile_version = 1` | the profile format version |
 | `name` | a non-empty label for people; no tool reads it |
 | `repository` | the chat's expected working directory and the only repository where commits may be escalated |
 | `state` | the directory holding the active-chat record, queue lock and pending marker |
 
-The two path values must be absolute or start with `~/`; the latter form is
+Version 2 has the same four keys and adds a non-empty ordered array of
+`[[validation]]` tables. Each table has a unique `name` and a non-empty
+`arguments` array, which is executed directly without a shell. Optional
+`environment` string entries augment the environment; `pytest`, `always_show`
+and `require_clean` are boolean flags. The `{base}` placeholder in an argument
+requires `validate.py --base REV`. A leading `~/` in an argument is expanded
+against `HOME`.
+
+The `repository` and `state` values must be absolute or start with `~/`; the latter form is
 expanded against `HOME`. Their spelling is canonical: no empty, `.` or `..`
 component and no trailing slash. This check is lexical and does not access the
-filesystem. Unknown or missing keys, wrong types, other versions, invalid TOML
+filesystem. Unknown or missing keys, wrong types, unsupported versions, invalid TOML
 and unreadable files are configuration errors. The stateful tools refuse with
 exit status 2 before writing anything. `AGENT_CYCLE_REPO`, `AGENT_CYCLE_STATE`
 and `S0_STATE_DIR` are retired and must be unset.
