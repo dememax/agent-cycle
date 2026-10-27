@@ -19,7 +19,7 @@ def test_release_identity_has_one_version_source() -> None:
     metadata = configuration["project"]
     assert metadata == {
         "name": "agent-cycle",
-        "version": "0.1.0",
+        "version": "0.1.1",
         "description": "Tools for a reviewer-implementer pair of AI agents.",
         "requires-python": ">=3.14",
         "license": "GPL-3.0-only",
@@ -30,4 +30,4 @@ def test_release_identity_has_one_version_source() -> None:
     assert sphinx_configuration["project"] == metadata["name"]
     assert sphinx_configuration["version"] == metadata["version"]
     assert sphinx_configuration["release"] == metadata["version"]
-    assert '"0.1.0"' not in (ROOT / "docs" / "conf.py").read_text()
+    assert '"0.1.1"' not in (ROOT / "docs" / "conf.py").read_text()
