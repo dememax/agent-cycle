@@ -21,7 +21,8 @@ repository itself.
 
 ## Status
 
-- **Release:** version `0.1.0`; the first work package is complete.
+- **Release:** version `0.1.1`; the second work package and token tools
+  `TOKENS-1`–`TOKENS-4` are complete.
 - **In use:** stage "S0+": the driver queues every turn itself, and nobody
   relays messages.
 - **Tests:** `python3.14 -m pytest` characterizes the tools' refusal paths
