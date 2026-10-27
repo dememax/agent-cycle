@@ -60,6 +60,25 @@ def run_validate(
     return isolated_env.run([PYTHON, VALIDATE, *arguments], timeout=30)
 
 
+def test_isolated_mode_finds_shared_reader(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """The documented isolated invocation can import the adjacent reader."""
+    write_validation_profile(
+        isolated_env,
+        [{"name": "step", "arguments": command("print('generated')")}],
+    )
+
+    result = isolated_env.run(
+        [PYTHON, "-I", VALIDATE, "--out", tmp_path / "validation"],
+        timeout=30,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert "step: exit 0" in result.stdout
+
+
 def test_all_steps_pass_and_default_output_is_private(isolated_env: IsolatedEnvironment) -> None:
     write_validation_profile(
         isolated_env,
