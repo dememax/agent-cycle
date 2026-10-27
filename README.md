@@ -71,6 +71,7 @@ practices.
 | `bin/turn-usage.py` | One turn's usage and renewal facts for both agents; an optional previous turn is read-only (best-effort: malformed lines are skipped) |
 | `bin/read-section.py` | Read one Markdown or reStructuredText section exactly, refusing missing or ambiguous headings and invalid inputs |
 | `bin/turn-record.py` | Generate the factual Markdown skeleton of a turn record from its evidence directory, without guessing missing facts |
+| `bin/state.py` | Print the generated restart summary, or atomically refresh its JSON and Markdown caches in the selected project's state directory |
 | `bin/validate.py` | Run a project's ordered validation steps once, retain their raw output, and print a compact complete summary |
 | `bin/codexlog.py` | The strict log reader the tools share |
 | `tools/check-public.sh` | Fail closed on protected patterns in the content and metadata a push would publish |

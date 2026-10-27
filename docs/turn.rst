@@ -119,6 +119,10 @@ After the turn
 7. Start the turn record with ``bin/turn-record.py TURN_DIR`` after all the
    evidence above exists, then add the review's judgement, findings and
    verdict to its factual Markdown skeleton.
+8. After the turn record is complete, run ``bin/state.py --write`` to
+   regenerate ``STATE.json`` and ``STATE.md`` in the selected project's state
+   directory. The next restart reads the Markdown cache first, but verifies
+   its decision-relevant facts by command.
 
 ********************
 The turn directory

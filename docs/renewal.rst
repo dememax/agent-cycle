@@ -20,6 +20,12 @@ is an opaque summary that no one can review. The reviewed files are the
 auditable state. A renewal is safe when everything the next turn needs is
 in them, and nothing is in flight.
 
+Each project's state directory has a generated ``STATE.md`` orientation
+cache. A new agent session reads it first, then runs ``bin/state.py`` without
+``--write`` and verifies the decision-relevant facts with their named source
+commands. The cache makes the first join of repository, thread, usage and turn
+facts convenient; it does not replace those authoritative records.
+
 ***************
 When to renew
 ***************
