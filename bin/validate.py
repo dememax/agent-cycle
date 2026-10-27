@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from codexlog import ProfileError, ValidationStep, load_project_profile
 
 PYTEST_COUNT = re.compile(r"(?P<count>[0-9]+) (?P<kind>failed|passed)\b")
