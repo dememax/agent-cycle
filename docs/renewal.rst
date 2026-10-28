@@ -75,11 +75,19 @@ A new implementer chat
    first message is the sentinel, in a completed turn. Exactly one
    candidate and no unreadable look-alike are required.
 3. It compares the settings with the old chat's on the twelve stopping
-   keys; any difference stops, and the driver says which setting to change.
+   keys. The new chat's effective profile uses its initial ``turn_context``
+   and only a ``thread_settings_applied`` event inside that initial turn. The
+   old chat uses its latest context and latest settings event. Context values
+   take precedence, and every stopping key must be known. The identifier
+   prints each new value's source; any difference or unknown stops, and the
+   driver says which setting to change.
    A project's first chat is compared with another project's chat, after
    moving that chat's repository paths to the new repository.
-4. It records the chat (``--write``) as the single active chat. The
-   old chat is never addressed again.
+4. It reports both chats' ``session_meta`` CLI versions. A difference is
+   expected after an extension upgrade and is not itself a profile failure:
+   renewal is where the driver verifies the changed generated-log shape. It
+   records the new chat and its CLI version (``--write``) as the single active
+   chat. The old chat is never addressed again.
 5. It sends a read-only orientation turn: the implementer reads the
    instructions and the current state, and restates in its own words its
    role, the escalation rule, the protocol, the JSON contract and the next
@@ -98,3 +106,18 @@ A new driver session
    is left, the implementer's usage limits, and the pinned tools' hashes.
 4. It reports the verified state and the next action to the person,
    then continues.
+
+*********************
+CLI version changes
+*********************
+
+Outside renewal, the queue refuses when ``codex --version`` differs from the
+active record. This means the executable may emit a log shape the pinned tools
+have not reviewed. The driver does not re-anchor from the refusal alone. It
+first inspects generated reproductions of the new format, has the parser and
+refusal changes independently reviewed, and re-pins the approved tools.
+
+Only then does it run ``bin/codex-queue-turn.sh --reanchor-cli``. That separate
+locked operation prints both versions, retains the old value with a timestamp
+in ``cli_version_history``, and atomically updates the anchor. The next ordinary
+queue invocation performs the version check again.

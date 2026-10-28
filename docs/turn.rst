@@ -38,6 +38,12 @@ revision, never from the live checkout. Otherwise the implementer's
 commits in this repository would change the tools that audit them. A tool
 change is re-pinned only after its review.
 
+The active-chat record also anchors the Codex CLI version from the chat's
+``session_meta``. The queue asks its selected executable for ``codex --version``
+before it creates turn evidence or a pending marker. A missing anchor,
+unparseable output or a different version is a refusal, not an implicit
+upgrade.
+
 *****************
 Before the turn
 *****************
@@ -66,10 +72,20 @@ takes an exclusive lock and refuses unless:
   directory, creation time) equals the record's;
 - the chat's first message is the recorded sentinel, in a completed turn;
 - no turn is running, and no earlier submission is pending;
-- the latest settings equal the recorded profile on the twelve stopping
-  keys (working directory, approvals, sandbox, permissions, model, effort,
-  collaboration mode, personality and the rest);
+- the latest effective profile equals the recorded profile on the twelve
+  stopping keys (working directory, approvals, sandbox, permissions, model,
+  effort, collaboration mode, personality and the rest);
+- the executable's CLI version equals the active record's anchor;
 - ``prompt.md`` starts with the driver header.
+
+An effective profile starts with a ``turn_context``. A stopping key present
+there always wins. An absent key is completed from
+``thread_settings_applied``: ``runtime_workspace_roots`` supplies
+``workspace_roots``, ``reasoning_effort`` supplies ``effort``, and the other
+names are unchanged. For the queue, the latest context uses the latest
+settings event anywhere in the log. A value found in neither source is
+unknown and always refuses; two unknowns never compare equal. A stored
+baseline with a missing or null stopping key is malformed and also refuses.
 
 It reads ``prompt.md`` once, under the lock, and uses that text for
 validation, submission and comparison. It writes ``pending.json`` durably,
@@ -78,6 +94,18 @@ Only then does it write ``turn-id`` and remove the marker. A second new
 turn, a foreign prompt, a malformed line, a failed submission or a timeout
 refuses, and keeps the marker. Every later call then refuses until a
 person investigates.
+
+After an independently reviewed CLI log-format change, the driver may advance
+the active record's anchor explicitly::
+
+   bin/codex-queue-turn.sh --reanchor-cli
+
+The command takes the same queue lock, validates the active log and effective
+profile, prints the old and new versions, appends the old value and a timestamp
+to ``cli_version_history``, and atomically writes the record. It refuses when a
+turn is running, a submission is pending, the profile is unknown or changed,
+or the executable is already at the recorded version. An ordinary queue call
+never re-anchors.
 
 ****************
 After the turn

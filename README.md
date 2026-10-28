@@ -65,8 +65,8 @@ practices.
 
 | Tool | Purpose |
 |---|---|
-| `bin/codex-identify-thread.py` | Identify a newly created visible Codex chat by its first message, fail-closed, and check its settings against the previous chat's |
-| `bin/codex-queue-turn.sh` | Queue one turn into the single active chat, under a lock, refusing on any mismatch; implemented in `codex-queue-turn.py` |
+| `bin/codex-identify-thread.py` | Identify a new visible Codex chat by its first message, fail-closed, check its effective profile, and record its CLI version |
+| `bin/codex-queue-turn.sh` | Queue one turn into the single active chat under a lock, enforcing its profile and CLI-version anchors; implemented in `codex-queue-turn.py` |
 | `bin/audit-turn.py` | After a turn: list escalated commands, require the final message to be one strict JSON object, and validate it recursively against a result schema |
 | `bin/github-snapshot.sh` | Snapshot the HEAD, refs and status of each repository under `~/github/*/` and `~/github/*/*/`, failing closed on an incomplete Git query |
 | `bin/turn-usage.py` | One turn's usage and renewal facts for both agents; an optional previous turn is read-only (best-effort: malformed lines are skipped) |
