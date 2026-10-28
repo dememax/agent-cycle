@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from typing import Any
 
 STAMP = "2040-01-02T03:04:05Z"
+CLI_VERSION = "0.162.0-alpha.17.2"
 
 
 def record(record_type: str, payload: Mapping[str, object]) -> dict[str, object]:
@@ -27,11 +28,19 @@ def session_meta(
     source: str = "vscode",
     originator: str = "codex_vscode",
     timestamp: str = STAMP,
+    cli_version: str = CLI_VERSION,
 ) -> dict[str, object]:
     """Build the first record of a generated rollout log."""
     return record(
         "session_meta",
-        {"id": thread_id, "source": source, "originator": originator, "cwd": str(cwd), "timestamp": timestamp},
+        {
+            "id": thread_id,
+            "source": source,
+            "originator": originator,
+            "cwd": str(cwd),
+            "timestamp": timestamp,
+            "cli_version": cli_version,
+        },
     )
 
 

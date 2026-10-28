@@ -12,6 +12,7 @@ import pytest
 
 from .conftest import PYTHON, ROOT, IsolatedEnvironment
 from .rollout import (
+    CLI_VERSION,
     composer,
     session_meta,
     task_complete,
@@ -403,3 +404,24 @@ def test_turn_context_value_wins_over_initial_turn_settings(
 
     assert code == 0, stderr
     assert 'same personality: "pragmatic" (source: turn_context)' in stdout
+
+
+def test_identifier_records_and_reports_cli_versions(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """A version change is visible but does not prevent a verified renewal."""
+    old_log = make_old_log(tmp_path, isolated_env.repo)
+    candidate = candidate_path(isolated_env)
+    records = valid_records(thread_id="thread-new", cwd=isolated_env.repo)
+    metadata = cast("dict[str, object]", records[0]["payload"])
+    metadata["cli_version"] = "0.164.0-alpha.11.1"
+    write_records(candidate, records)
+
+    code, stdout, stderr = run_identifier(isolated_env, SENTINEL, SINCE, old_log, "--write")
+
+    assert code == 0, stderr
+    active = json.loads((isolated_env.state / "active-codex-thread.json").read_text(encoding="utf-8"))
+    assert active.get("cli_version") == "0.164.0-alpha.11.1"
+    assert f"old CLI version: {CLI_VERSION}" in stdout
+    assert "new CLI version: 0.164.0-alpha.11.1" in stdout

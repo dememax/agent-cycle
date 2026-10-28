@@ -13,6 +13,7 @@ import time
 from pathlib import Path
 
 STAMP = "2040-01-02T03:04:05Z"
+CLI_VERSION = "0.162.0-alpha.17.2"
 
 
 def line(record_type: str, payload: dict[str, object]) -> str:
@@ -66,6 +67,9 @@ def worker(mode: str, log: Path, message: str, delay: float) -> int:
 
 def main() -> int:
     """Emulate the subset of ``codex queue`` used by the wrapper."""
+    if sys.argv[1:] == ["--version"]:
+        print(os.environ.get("FAKE_CODEX_VERSION_OUTPUT", f"codex-cli {CLI_VERSION}"))
+        return 0
     if len(sys.argv) == 6 and sys.argv[1] == "--worker":
         return worker(sys.argv[2], Path(sys.argv[3]), sys.argv[4], float(sys.argv[5]))
     if len(sys.argv) != 6 or sys.argv[1] != "queue" or sys.argv[2] != "--thread" or sys.argv[4] != "--message":

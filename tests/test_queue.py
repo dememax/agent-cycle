@@ -13,6 +13,7 @@ import pytest
 
 from .conftest import ROOT, IsolatedEnvironment
 from .rollout import (
+    CLI_VERSION,
     composer,
     session_meta,
     task_complete,
@@ -92,6 +93,7 @@ def make_case(isolated_env: IsolatedEnvironment, tmp_path: Path, *, state: Path 
         "originator": "codex_vscode",
         "cwd": str(isolated_env.repo),
         "created": "2040-01-02T03:04:05Z",
+        "cli_version": CLI_VERSION,
         "sentinel": SENTINEL,
         "profile_baseline": baseline,
     }
@@ -123,6 +125,25 @@ def run_queue(
     }
     fake_environment.update(extra_env or {})
     result = isolated_env.run([QUEUE, case.turn_dir], extra_env=fake_environment)
+    return result.returncode, result.stdout, result.stderr
+
+
+def run_reanchor(
+    isolated_env: IsolatedEnvironment,
+    case: QueueCase,
+    *,
+    version_output: str,
+) -> tuple[int, str, str]:
+    """Run the explicit CLI-version re-anchoring operation."""
+    result = isolated_env.run(
+        [QUEUE, "--reanchor-cli"],
+        extra_env={
+            "FAKE_CODEX_MODE": "none",
+            "FAKE_CODEX_LOG": str(case.log),
+            "FAKE_CODEX_PROMPT": str(case.turn_dir / "prompt.md"),
+            "FAKE_CODEX_VERSION_OUTPUT": version_output,
+        },
+    )
     return result.returncode, result.stdout, result.stderr
 
 
@@ -478,3 +499,73 @@ def test_queue_refuses_missing_or_null_stopping_baseline(
         case.write_active()
 
         assert_pre_submission_refusal(case, run_queue(isolated_env, case), "malformed profile_baseline")
+
+
+def test_queue_accepts_matching_cli_version(isolated_env: IsolatedEnvironment, tmp_path: Path) -> None:
+    """The anchored fake CLI may submit a turn when its version matches."""
+    case = make_case(isolated_env, tmp_path)
+
+    returncode, _stdout, stderr = run_queue(isolated_env, case, "turn")
+
+    assert returncode == 0, stderr
+
+
+def test_queue_refuses_changed_cli_version_before_submission(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """A CLI upgrade requires format review and explicit re-anchoring."""
+    case = make_case(isolated_env, tmp_path)
+
+    result = run_queue(
+        isolated_env,
+        case,
+        "turn",
+        extra_env={"FAKE_CODEX_VERSION_OUTPUT": "codex-cli 0.164.0-alpha.11.1"},
+    )
+
+    assert_pre_submission_refusal(case, result, "recorded 0.162.0-alpha.17.2, executable 0.164.0-alpha.11.1")
+    assert "log format must be verified before re-anchoring" in result[2]
+
+
+def test_queue_refuses_missing_cli_version_anchor(isolated_env: IsolatedEnvironment, tmp_path: Path) -> None:
+    """A legacy active record cannot silently acquire an anchor."""
+    case = make_case(isolated_env, tmp_path)
+    del case.active["cli_version"]
+    case.write_active()
+
+    assert_pre_submission_refusal(case, run_queue(isolated_env, case, "turn"), "active record lacks cli_version")
+
+
+def test_queue_refuses_unparseable_cli_version(isolated_env: IsolatedEnvironment, tmp_path: Path) -> None:
+    """Unexpected version output is not guessed or accepted."""
+    case = make_case(isolated_env, tmp_path)
+
+    result = run_queue(
+        isolated_env,
+        case,
+        "turn",
+        extra_env={"FAKE_CODEX_VERSION_OUTPUT": "generated unexpected version output"},
+    )
+
+    assert_pre_submission_refusal(case, result, "cannot parse Codex CLI version")
+
+
+def test_reanchor_cli_updates_record_and_history(isolated_env: IsolatedEnvironment, tmp_path: Path) -> None:
+    """The explicit locked operation preserves the old version with its timestamp."""
+    case = make_case(isolated_env, tmp_path)
+
+    returncode, stdout, stderr = run_reanchor(
+        isolated_env,
+        case,
+        version_output="codex-cli 0.164.0-alpha.11.1",
+    )
+
+    assert returncode == 0, stderr
+    active = json.loads((case.state / "active-codex-thread.json").read_text(encoding="utf-8"))
+    assert active["cli_version"] == "0.164.0-alpha.11.1"
+    assert active["cli_version_history"][0]["cli_version"] == CLI_VERSION
+    assert active["cli_version_history"][0]["reanchored_at"]
+    assert f"old CLI version: {CLI_VERSION}" in stdout
+    assert "new CLI version: 0.164.0-alpha.11.1" in stdout
+    assert not (case.state / "pending.json").exists()
