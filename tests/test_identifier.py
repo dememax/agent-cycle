@@ -363,7 +363,11 @@ def test_identifier_refuses_0164_without_initial_turn_settings(
     """Missing fallback values make the candidate profile unknown."""
     old_log = make_old_log(tmp_path, isolated_env.repo)
     records = valid_records_0164(thread_id="thread-new", cwd=isolated_env.repo)
-    records = [record for record in records if (record.get("payload") or {}).get("type") != "thread_settings_applied"]
+    records = [
+        record
+        for record in records
+        if cast("dict[str, object]", record.get("payload") or {}).get("type") != "thread_settings_applied"
+    ]
     write_records(candidate_path(isolated_env), records)
 
     code, stdout, _stderr = run_identifier(isolated_env, SENTINEL, SINCE, old_log, "--write")
