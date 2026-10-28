@@ -58,6 +58,41 @@ def turn_context(*, cwd: Path, **overrides: object) -> dict[str, object]:
     return record("turn_context", payload)
 
 
+def turn_context_0164(*, cwd: Path, **overrides: object) -> dict[str, object]:
+    """Build the reduced turn-context shape emitted by Codex CLI 0.164."""
+    context = turn_context(cwd=cwd, **overrides)
+    payload = context["payload"]
+    assert isinstance(payload, dict)
+    for key in ("personality", "workspace_roots", "timezone"):
+        payload.pop(key)
+    return context
+
+
+def thread_settings_applied(*, cwd: Path, **overrides: object) -> dict[str, object]:
+    """Build the settings event that supplies profile values outside turn_context."""
+    settings: dict[str, object] = {
+        "active_permission_profile": "workspace",
+        "approval_policy": "on-request",
+        "approvals_reviewer": "auto_review",
+        "collaboration_mode": "default",
+        "cwd": str(cwd),
+        "disabled_plugin_ids": [],
+        "model": "synthetic-model",
+        "model_provider_id": "synthetic-provider",
+        "permission_profile": "workspace",
+        "personality": "pragmatic",
+        "reasoning_effort": "high",
+        "reasoning_summary": "auto",
+        "runtime_workspace_roots": [str(cwd)],
+        "service_tier": "synthetic",
+    }
+    settings.update(overrides)
+    return record(
+        "event_msg",
+        {"type": "thread_settings_applied", "thread_id": "thread-generated", "thread_settings": settings},
+    )
+
+
 def composer(
     turn_id: str,
     text: str,

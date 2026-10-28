@@ -11,7 +11,16 @@ from typing import TYPE_CHECKING, cast
 import pytest
 
 from .conftest import PYTHON, ROOT, IsolatedEnvironment
-from .rollout import composer, session_meta, task_complete, task_started, turn_context, write_records
+from .rollout import (
+    composer,
+    session_meta,
+    task_complete,
+    task_started,
+    thread_settings_applied,
+    turn_context,
+    turn_context_0164,
+    write_records,
+)
 from .test_queue import SENTINEL, STOPPING_KEYS
 
 if TYPE_CHECKING:
@@ -28,6 +37,18 @@ def valid_records(*, thread_id: str, cwd: Path, sentinel: str = SENTINEL) -> lis
         turn_context(cwd=cwd),
         task_started("turn-initial"),
         composer("turn-initial", sentinel),
+        task_complete("turn-initial"),
+    ]
+
+
+def valid_records_0164(*, thread_id: str, cwd: Path, sentinel: str = SENTINEL) -> list[dict[str, object]]:
+    """Build one complete candidate with the Codex CLI 0.164 profile shape."""
+    return [
+        session_meta(thread_id=thread_id, cwd=cwd),
+        task_started("turn-initial"),
+        turn_context_0164(cwd=cwd),
+        composer("turn-initial", sentinel),
+        thread_settings_applied(cwd=cwd),
         task_complete("turn-initial"),
     ]
 
@@ -312,3 +333,73 @@ def test_write_records_only_stopping_profile_keys(
     assert set(active["profile_baseline"]) == set(STOPPING_KEYS)
     assert "recorded_at" in active
     assert f"written: {active_path}" in stdout
+
+
+def test_0164_effective_profile_matches_0162_and_records_sources(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """An initial-turn settings event completes the reduced 0.164 context."""
+    old_log = make_old_log(tmp_path, isolated_env.repo)
+    candidate = candidate_path(isolated_env)
+    write_records(candidate, valid_records_0164(thread_id="thread-new", cwd=isolated_env.repo))
+
+    code, stdout, stderr = run_identifier(isolated_env, SENTINEL, SINCE, old_log, "--write")
+
+    assert code == 0, stderr
+    active = json.loads((isolated_env.state / "active-codex-thread.json").read_text(encoding="utf-8"))
+    assert active["profile_baseline"]["personality"] == "pragmatic"
+    assert active["profile_baseline"]["workspace_roots"] == [str(isolated_env.repo)]
+    assert "same personality (thread_settings_applied):" in stdout
+    assert "same workspace_roots (thread_settings_applied):" in stdout
+    assert "same model (turn_context):" in stdout
+
+
+def test_identifier_refuses_0164_without_initial_turn_settings(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """Missing fallback values make the candidate profile unknown."""
+    old_log = make_old_log(tmp_path, isolated_env.repo)
+    records = valid_records_0164(thread_id="thread-new", cwd=isolated_env.repo)
+    records = [record for record in records if (record.get("payload") or {}).get("type") != "thread_settings_applied"]
+    write_records(candidate_path(isolated_env), records)
+
+    code, stdout, _stderr = run_identifier(isolated_env, SENTINEL, SINCE, old_log, "--write")
+
+    assert code == 1
+    assert "unknown stopping keys: workspace_roots, personality" in stdout
+    assert not (isolated_env.state / "active-codex-thread.json").exists()
+
+
+def test_identifier_ignores_settings_outside_initial_turn(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """A later settings event cannot complete the initial profile."""
+    old_log = make_old_log(tmp_path, isolated_env.repo)
+    records = valid_records_0164(thread_id="thread-new", cwd=isolated_env.repo)
+    settings = records.pop(-2)
+    records.append(settings)
+    write_records(candidate_path(isolated_env), records)
+
+    code, stdout, _stderr = run_identifier(isolated_env, SENTINEL, SINCE, old_log, "--write")
+
+    assert code == 1
+    assert "unknown stopping keys: workspace_roots, personality" in stdout
+
+
+def test_turn_context_value_wins_over_initial_turn_settings(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """Settings events fill absent keys but never override context values."""
+    old_log = make_old_log(tmp_path, isolated_env.repo)
+    records = valid_records(thread_id="thread-new", cwd=isolated_env.repo)
+    records.insert(-1, thread_settings_applied(cwd=isolated_env.repo, personality="different"))
+    write_records(candidate_path(isolated_env), records)
+
+    code, stdout, stderr = run_identifier(isolated_env, SENTINEL, SINCE, old_log)
+
+    assert code == 0, stderr
+    assert "same personality (turn_context):" in stdout

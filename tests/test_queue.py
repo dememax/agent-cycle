@@ -12,7 +12,16 @@ from typing import TYPE_CHECKING, cast
 import pytest
 
 from .conftest import ROOT, IsolatedEnvironment
-from .rollout import composer, session_meta, task_complete, task_started, turn_context, write_records
+from .rollout import (
+    composer,
+    session_meta,
+    task_complete,
+    task_started,
+    thread_settings_applied,
+    turn_context,
+    turn_context_0164,
+    write_records,
+)
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -90,6 +99,13 @@ def make_case(isolated_env: IsolatedEnvironment, tmp_path: Path, *, state: Path 
     case.write_log()
     case.write_active()
     return case
+
+
+def use_0164_profile(case: QueueCase, cwd: Path, **settings: object) -> None:
+    """Replace the generated complete context with a reduced context and settings event."""
+    case.records[1] = turn_context_0164(cwd=cwd)
+    case.records.insert(-1, thread_settings_applied(cwd=cwd, **settings))
+    case.write_log()
 
 
 def run_queue(
@@ -408,3 +424,57 @@ def test_prompt_rewritten_after_submission_still_matches_original(
     assert (case.turn_dir / "prompt.md").read_text(encoding="utf-8") == "rewritten after submission\n"
     assert (case.turn_dir / "turn-id").read_text(encoding="utf-8") == "turn-rewrite\n"
     assert not (case.state / "pending.json").exists()
+
+
+def test_queue_accepts_0164_effective_profile(isolated_env: IsolatedEnvironment, tmp_path: Path) -> None:
+    """The latest settings event completes a reduced latest context."""
+    case = make_case(isolated_env, tmp_path)
+    use_0164_profile(case, isolated_env.repo)
+
+    returncode, _stdout, stderr = run_queue(isolated_env, case, "turn")
+
+    assert returncode == 0, stderr
+    assert not (case.state / "pending.json").exists()
+
+
+def test_queue_refuses_0164_settings_drift(isolated_env: IsolatedEnvironment, tmp_path: Path) -> None:
+    """A changed fallback personality is behavioural profile drift."""
+    case = make_case(isolated_env, tmp_path)
+    use_0164_profile(case, isolated_env.repo, personality="different")
+
+    assert_pre_submission_refusal(case, run_queue(isolated_env, case), "profile drift on: personality")
+
+
+def test_queue_refuses_0164_without_settings(isolated_env: IsolatedEnvironment, tmp_path: Path) -> None:
+    """A reduced context without fallback settings has unknown keys."""
+    case = make_case(isolated_env, tmp_path)
+    case.records[1] = turn_context_0164(cwd=isolated_env.repo)
+    case.write_log()
+
+    assert_pre_submission_refusal(
+        case,
+        run_queue(isolated_env, case),
+        "unknown stopping keys: workspace_roots, personality",
+    )
+
+
+def test_queue_refuses_missing_or_null_stopping_baseline(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """Absent and null baseline entries are malformed, even when the log also lacks them."""
+    for value in ("missing", None):
+        case_root = tmp_path / f"case-{value}"
+        case_root.mkdir()
+        case = make_case(isolated_env, case_root)
+        case.records[1] = turn_context_0164(cwd=isolated_env.repo)
+        baseline = cast("dict[str, object]", case.active["profile_baseline"])
+        if value == "missing":
+            baseline.pop("personality")
+        else:
+            baseline["personality"] = None
+        baseline.pop("workspace_roots")
+        case.write_log()
+        case.write_active()
+
+        assert_pre_submission_refusal(case, run_queue(isolated_env, case), "malformed profile_baseline")
