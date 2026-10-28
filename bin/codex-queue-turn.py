@@ -5,9 +5,15 @@
 """Queue one S0 turn into the ACTIVE visible Codex thread, fail-closed.
 
 Usage: codex-queue-turn.py TURN_DIR
+       codex-queue-turn.py --reanchor-cli
 
 The state directory (active-codex-thread.json, queue.lock, pending.json) and
 repository come from the required AGENT_CYCLE_PROFILE file.
+
+Before queueing, the executable's ``codex-cli VERSION`` output must equal
+the active record's CLI-version anchor. ``--reanchor-cli`` is the explicit,
+locked operation that advances the anchor after the new log format has been
+independently verified; it records the old version and a timestamp.
 
 Holds an exclusive lock (queue.lock) from the checks until Codex has
 visibly started the new turn, so two drivers cannot both queue. Refuses
@@ -42,6 +48,7 @@ import fcntl
 import glob
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -51,6 +58,8 @@ from typing import Any, cast
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import codexlog
+
+CLI_VERSION_PATTERN = re.compile(r"codex-cli ([0-9A-Za-z][0-9A-Za-z.+-]*)")
 
 
 def refuse(message: str) -> int:
@@ -84,10 +93,46 @@ def write_durably(path: Path, text: str) -> None:
     fsync_dir(path.parent)
 
 
+def executable_cli_version(codex: str, timeout: float) -> tuple[str | None, str | None]:
+    """Read one exact Codex CLI version line within the queue timeout."""
+    try:
+        result = subprocess.run(
+            [codex, "--version"],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        return None, f"Codex CLI --version did not return within {timeout:g} s"
+    except OSError as error:
+        return None, f"cannot run Codex CLI --version ({error})"
+    if result.returncode != 0:
+        return None, f"Codex CLI --version failed (exit {result.returncode})"
+    match = CLI_VERSION_PATTERN.fullmatch(result.stdout.rstrip("\n"))
+    if match is None:
+        return None, "cannot parse Codex CLI version; expected 'codex-cli VERSION'"
+    return match.group(1), None
+
+
+def version_history(active: dict[str, Any]) -> list[dict[str, str]]:
+    """Validate and return the append-only CLI-version history."""
+    value = active.get("cli_version_history", [])
+    if not isinstance(value, list) or any(
+        not isinstance(item, dict)
+        or set(item) != {"cli_version", "reanchored_at"}
+        or not all(isinstance(item[key], str) and item[key] for key in item)
+        for item in value
+    ):
+        raise codexlog.LogError("active record has malformed cli_version_history")
+    return cast("list[dict[str, str]]", value)
+
+
 def check(
     active: dict[str, Any],
     prompt_text: str | None,
     repository: str,
+    *,
+    require_prompt: bool = True,
 ) -> tuple[list[dict[str, Any]] | None, str | None]:
     if active.get("cwd") != repository:
         return None, f"active record's cwd {active.get('cwd')!r} is not the selected repository {repository!r}"
@@ -121,10 +166,11 @@ def check(
             return None, "profile drift on: " + ", ".join(drift)
     except (codexlog.LogError, OSError, KeyError) as error:
         return None, f"log check failed: {error}"
-    if prompt_text is None:
-        return None, "no prompt.md"
-    if not prompt_text.startswith("[S0 DRIVER: Claude Code]"):
-        return None, "prompt.md lacks the driver header"
+    if require_prompt:
+        if prompt_text is None:
+            return None, "no prompt.md"
+        if not prompt_text.startswith("[S0 DRIVER: Claude Code]"):
+            return None, "prompt.md lacks the driver header"
     return recs, None
 
 
@@ -141,7 +187,8 @@ def main() -> int:
     if len(sys.argv) != 2:
         print(__doc__)
         return 2
-    turn_dir = Path(sys.argv[1])
+    reanchor = sys.argv[1] == "--reanchor-cli"
+    turn_dir = None if reanchor else Path(sys.argv[1])
     if not active_path.is_file():
         return refuse("no active-codex-thread.json")
     codex = codex_binary()
@@ -158,8 +205,41 @@ def main() -> int:
             return refuse(
                 f"an earlier submission never started a turn: {pending}; investigate, then remove {pending_path}"
             )
+        anchored_version = active.get("cli_version")
+        if not isinstance(anchored_version, str) or not anchored_version:
+            return refuse("active record lacks cli_version")
+        timeout = float(os.environ.get("S0_QUEUE_TIMEOUT", "300"))
+        current_version, version_problem = executable_cli_version(codex, timeout)
+        if version_problem:
+            return refuse(version_problem)
+        current_version = cast("str", current_version)
+        if reanchor:
+            _recs, problem = check(active, None, repository, require_prompt=False)
+            if problem:
+                return refuse(problem)
+            if current_version == anchored_version:
+                return refuse(f"Codex CLI is already anchored at {anchored_version}")
+            try:
+                history = version_history(active)
+            except codexlog.LogError as error:
+                return refuse(str(error))
+            reanchored_at = datetime.now().astimezone().isoformat(timespec="seconds")
+            history.append({"cli_version": anchored_version, "reanchored_at": reanchored_at})
+            active["cli_version_history"] = history
+            active["cli_version"] = current_version
+            write_durably(active_path, json.dumps(active, indent=2) + "\n")
+            print(f"old CLI version: {anchored_version}")
+            print(f"new CLI version: {current_version}")
+            print(f"re-anchored: {active_path}")
+            return 0
+        if current_version != anchored_version:
+            return refuse(
+                f"Codex CLI version changed: recorded {anchored_version}, executable {current_version}; "
+                "the log format must be verified before re-anchoring with --reanchor-cli"
+            )
         # Read the prompt once, under the lock; the same text is validated,
         # submitted and compared, so a later change to the file cannot slip in.
+        turn_dir = cast("Path", turn_dir)
         prompt_file = turn_dir / "prompt.md"
         prompt_text = prompt_file.read_text(encoding="utf-8") if prompt_file.is_file() else None
         recs, problem = check(active, prompt_text, repository)
@@ -179,7 +259,6 @@ def main() -> int:
             pending_path,
             json.dumps({"turn_dir": str(turn_dir), "thread_id": active["thread_id"], "lines_before": before}) + "\n",
         )
-        timeout = float(os.environ.get("S0_QUEUE_TIMEOUT", "300"))
         try:
             result = subprocess.run(
                 [codex, "queue", "--thread", active["thread_id"], "--message", prompt_text],

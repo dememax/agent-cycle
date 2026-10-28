@@ -16,8 +16,10 @@ equals SENTINEL apart from trailing newlines (codexlog.canonical), in a complete
 must exist. Unparseable files are reported and count as a failure when
 they otherwise look like candidates (same source, originator and cwd).
 
-It compares the candidate's first turn_context with the old thread's last
-one on codexlog.STOPPING_KEYS, and prints DIAGNOSTIC_KEYS. When the old
+It compares the candidate's first effective profile with the old thread's
+latest effective profile on codexlog.STOPPING_KEYS, and prints DIAGNOSTIC_KEYS.
+It also records the candidate's session_meta cli_version and reports both
+threads' versions without requiring them to match. When the old
 thread belongs to another repository (the first chat of a project), its
 settings are compared relocated: every string that is the old repository's
 path, or a path under it, is moved to the selected repository first. With --write and
@@ -121,6 +123,14 @@ def main() -> int:
         print(f"FAIL: old log: {error}")
         return 1
     try:
+        new_cli_version = codexlog.session_cli_version(meta)
+        old_cli_version = codexlog.session_cli_version(codexlog.session_meta(old_recs))
+    except codexlog.LogError as error:
+        print(f"FAIL: {error}")
+        return 1
+    print(f"  old CLI version: {old_cli_version}")
+    print(f"  new CLI version: {new_cli_version}")
+    try:
         new, new_sources = codexlog.initial_effective_profile(recs)
         old, _old_sources = codexlog.latest_effective_profile(old_recs)
     except codexlog.LogError as error:
@@ -158,6 +168,8 @@ def main() -> int:
                     "originator": meta.get("originator"),
                     "cwd": meta.get("cwd"),
                     "created": meta["timestamp"],
+                    "cli_version": new_cli_version,
+                    "cli_version_history": [],
                     "sentinel": sentinel,
                     "recorded_at": datetime.now().astimezone().isoformat(timespec="seconds"),
                     "replaces_thread_log": str(old_log),

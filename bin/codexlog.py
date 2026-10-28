@@ -243,6 +243,14 @@ def session_meta(recs: list[dict[str, Any]]) -> dict[str, Any]:
     return first.get("payload") or {}
 
 
+def session_cli_version(meta: dict[str, Any]) -> str:
+    """Return the non-empty CLI version anchored by session metadata."""
+    value = meta.get("cli_version")
+    if not isinstance(value, str) or not value:
+        raise LogError("session_meta lacks a non-empty cli_version")
+    return value
+
+
 def composer_messages(recs: list[dict[str, Any]]) -> list[tuple[int, str, str]]:
     """(index, turn_id, text) of each composer message, in log order.
 
