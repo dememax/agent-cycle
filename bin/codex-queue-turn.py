@@ -112,11 +112,11 @@ def check(
         running = codexlog.running_turns(recs)
         if running:
             return None, f"turn running: {running}"
-        contexts = codexlog.turn_contexts(recs)
-        if not contexts:
+        if not codexlog.turn_contexts(recs):
             return None, "no turn_context"
-        latest = contexts[-1]
-        drift = [k for k in codexlog.STOPPING_KEYS if latest.get(k) != active["profile_baseline"].get(k)]
+        baseline = codexlog.profile_baseline(active.get("profile_baseline"))
+        latest, _sources = codexlog.latest_effective_profile(recs)
+        drift = [k for k in codexlog.STOPPING_KEYS if latest[k] != baseline[k]]
         if drift:
             return None, "profile drift on: " + ", ".join(drift)
     except (codexlog.LogError, OSError, KeyError) as error:

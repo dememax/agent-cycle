@@ -350,9 +350,9 @@ def test_0164_effective_profile_matches_0162_and_records_sources(
     active = json.loads((isolated_env.state / "active-codex-thread.json").read_text(encoding="utf-8"))
     assert active["profile_baseline"]["personality"] == "pragmatic"
     assert active["profile_baseline"]["workspace_roots"] == [str(isolated_env.repo)]
-    assert "same personality (thread_settings_applied):" in stdout
-    assert "same workspace_roots (thread_settings_applied):" in stdout
-    assert "same model (turn_context):" in stdout
+    assert 'same personality: "pragmatic" (source: thread_settings_applied)' in stdout
+    assert f"same workspace_roots: [\"{isolated_env.repo}\"] (source: thread_settings_applied)" in stdout
+    assert 'same model: "synthetic-model" (source: turn_context)' in stdout
 
 
 def test_identifier_refuses_0164_without_initial_turn_settings(
@@ -402,4 +402,4 @@ def test_turn_context_value_wins_over_initial_turn_settings(
     code, stdout, stderr = run_identifier(isolated_env, SENTINEL, SINCE, old_log)
 
     assert code == 0, stderr
-    assert "same personality (turn_context):" in stdout
+    assert 'same personality: "pragmatic" (source: turn_context)' in stdout

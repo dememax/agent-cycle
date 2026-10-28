@@ -120,11 +120,13 @@ def main() -> int:
     except codexlog.LogError as error:
         print(f"FAIL: old log: {error}")
         return 1
-    new_contexts, old_contexts = codexlog.turn_contexts(recs), codexlog.turn_contexts(old_recs)
-    if not new_contexts or not old_contexts:
-        print("FAIL: missing turn_context")
+    try:
+        new, new_sources = codexlog.initial_effective_profile(recs)
+        old, _old_sources = codexlog.latest_effective_profile(old_recs)
+    except codexlog.LogError as error:
+        print(f"FAIL: {error}")
         return 1
-    new, old = new_contexts[0], old_contexts[-1]
+    new_contexts, old_contexts = codexlog.turn_contexts(recs), codexlog.turn_contexts(old_recs)
     # A first chat for another project takes its settings from a chat of
     # another repository: compare them relocated to the selected one.
     old_cwd = codexlog.session_meta(old_recs).get("cwd")
@@ -133,10 +135,15 @@ def main() -> int:
         old = {k: relocate(v, old_cwd, repository) for k, v in old.items()}
     stopping = [k for k in codexlog.STOPPING_KEYS if new.get(k) != old.get(k)]
     for key in codexlog.STOPPING_KEYS:
-        print(f"  {'DIFF' if key in stopping else 'same'} {key}: {json.dumps(new.get(key))[:160]}")
+        print(
+            f"  {'DIFF' if key in stopping else 'same'} {key}: {json.dumps(new[key])[:160]} "
+            f"(source: {new_sources[key]})"
+        )
+    new_context, old_context = new_contexts[0], old_contexts[-1]
     for key in codexlog.DIAGNOSTIC_KEYS:
         print(
-            f"  {'same' if new.get(key) == old.get(key) else 'diff (diagnostic)'} {key}: {json.dumps(new.get(key))[:160]}"
+            f"  {'same' if new_context.get(key) == old_context.get(key) else 'diff (diagnostic)'} {key}: "
+            f"{json.dumps(new_context.get(key))[:160]}"
         )
     if stopping:
         print("FAIL: behavioural profile differs from the old thread: " + ", ".join(stopping))
@@ -154,7 +161,7 @@ def main() -> int:
                     "sentinel": sentinel,
                     "recorded_at": datetime.now().astimezone().isoformat(timespec="seconds"),
                     "replaces_thread_log": str(old_log),
-                    "profile_baseline": {k: new.get(k) for k in codexlog.STOPPING_KEYS},
+                    "profile_baseline": new,
                 },
                 indent=2,
             )

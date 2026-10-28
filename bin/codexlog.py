@@ -197,6 +197,7 @@ STOPPING_KEYS = (
     "personality",
 )
 DIAGNOSTIC_KEYS = ("timezone", "multi_agent_version", "disabled_plugin_ids")
+THREAD_SETTINGS_KEYS = {"workspace_roots": "runtime_workspace_roots", "effort": "reasoning_effort"}
 
 
 class LogError(Exception):
@@ -307,3 +308,78 @@ def initial_composer(recs: list[dict[str, Any]]) -> tuple[str, str]:
 
 def turn_contexts(recs: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [r.get("payload") or {} for r in recs if r.get("type") == "turn_context"]
+
+
+def _thread_settings(record: dict[str, Any], index: int) -> dict[str, Any] | None:
+    """Return one applied settings mapping, or None for another record."""
+    payload = record.get("payload") or {}
+    if record.get("type") != "event_msg" or payload.get("type") != "thread_settings_applied":
+        return None
+    settings = payload.get("thread_settings")
+    if not isinstance(settings, dict):
+        raise LogError(f"record {index}: thread_settings_applied without thread_settings object")
+    return settings
+
+
+def _effective_profile(
+    context: dict[str, Any],
+    settings: dict[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, str]]:
+    """Complete one turn context from applied settings without overriding it."""
+    values: dict[str, Any] = {}
+    sources: dict[str, str] = {}
+    unknown: list[str] = []
+    for key in STOPPING_KEYS:
+        settings_key = THREAD_SETTINGS_KEYS.get(key, key)
+        if key in context and context[key] is not None:
+            values[key] = context[key]
+            sources[key] = "turn_context"
+        elif settings is not None and settings_key in settings and settings[settings_key] is not None:
+            values[key] = settings[settings_key]
+            sources[key] = "thread_settings_applied"
+        else:
+            unknown.append(key)
+    if unknown:
+        raise LogError("unknown stopping keys: " + ", ".join(unknown))
+    return values, sources
+
+
+def latest_effective_profile(recs: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, str]]:
+    """The latest turn context, completed from the latest settings event anywhere."""
+    contexts = turn_contexts(recs)
+    if not contexts:
+        raise LogError("missing turn_context")
+    settings = None
+    for index, record in enumerate(recs):
+        candidate = _thread_settings(record, index)
+        if candidate is not None:
+            settings = candidate
+    return _effective_profile(contexts[-1], settings)
+
+
+def initial_effective_profile(recs: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, str]]:
+    """The first context, completed only by settings inside its initial turn."""
+    contexts = turn_contexts(recs)
+    if not contexts:
+        raise LogError("missing turn_context")
+    turn, _text = initial_composer(recs)
+    state = turn_states(recs)[turn]
+    start, complete = state["started"], state["complete"]
+    if start is None or complete is None:
+        raise LogError("the initial composer turn is not complete")
+    settings = None
+    for index in range(start + 1, complete):
+        candidate = _thread_settings(recs[index], index)
+        if candidate is not None:
+            settings = candidate
+    return _effective_profile(contexts[0], settings)
+
+
+def profile_baseline(value: object) -> dict[str, Any]:
+    """Validate the complete non-null stopping profile stored in an active record."""
+    if not isinstance(value, dict):
+        raise LogError("malformed profile_baseline: expected an object")
+    invalid = [key for key in STOPPING_KEYS if key not in value or value[key] is None]
+    if invalid:
+        raise LogError("malformed profile_baseline: missing or null stopping keys: " + ", ".join(invalid))
+    return value
