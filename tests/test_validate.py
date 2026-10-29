@@ -7,6 +7,7 @@ from __future__ import annotations
 import json
 import shutil
 import stat
+import tomllib
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -236,6 +237,67 @@ def test_missing_base_is_a_usage_error_before_running(
     assert "--base" in result.stderr
     assert not sentinel.exists()
     assert not output.exists()
+
+
+def test_check_rst_profile_checks_committed_rst_change(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """The check_rst profile passes every committed RST path to its checker."""
+    initialized = isolated_env.run(["git", "-C", isolated_env.repo, "init", "-q"])
+    assert initialized.returncode == 0, initialized.stderr
+    document = isolated_env.repo / "guide.rst"
+    document.write_text("Valid\n=====\n", encoding="utf-8")
+    for message in ("generated base", "generated defect"):
+        if message == "generated defect":
+            document.write_text("generated defect\n", encoding="utf-8")
+        added = isolated_env.run(["git", "-C", isolated_env.repo, "add", "guide.rst"])
+        assert added.returncode == 0, added.stderr
+        committed = isolated_env.run(
+            [
+                "git",
+                "-C",
+                isolated_env.repo,
+                "-c",
+                "user.name=Generated",
+                "-c",
+                "user.email=generated",
+                "commit",
+                "-q",
+                "-m",
+                message,
+            ]
+        )
+        assert committed.returncode == 0, committed.stderr
+    profile = tomllib.loads((ROOT / "profiles" / "check_rst.toml").read_text(encoding="utf-8"))
+    rst_step = next(step for step in profile["validation"] if step["name"] == "check_rst check")
+    assert rst_step["arguments"][:4] == ["python3.14", "-m", "check_rst", "check"]
+    write_validation_profile(
+        isolated_env,
+        [
+            {
+                "name": "check_rst check",
+                "arguments": command(
+                    "import sys; from pathlib import Path; "
+                    "files = [Path(value) for value in sys.argv[1:]]; "
+                    "raise SystemExit(any('generated defect' in path.read_text() for path in files))",
+                    *rst_step["arguments"][4:],
+                ),
+                "always_show": True,
+            }
+        ],
+    )
+
+    result = run_validate(
+        isolated_env,
+        "--base",
+        "HEAD^",
+        "--out",
+        tmp_path / "validation",
+    )
+
+    assert result.returncode == 1
+    assert "check_rst check: exit 1" in result.stdout
 
 
 def test_existing_output_directory_is_refused_before_running(
