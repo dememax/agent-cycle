@@ -17,6 +17,12 @@ TEMPLATE_NAMES = (
     "orientation-brief.md",
     "exact-exception-brief.md",
 )
+TEMPLATE_SCHEMAS = {
+    "implementation-brief.md": "implementation-result-v1.json",
+    "review-brief.md": "review-result-v1.json",
+    "orientation-brief.md": "review-result-v1.json",
+    "exact-exception-brief.md": "implementation-result-v1.json",
+}
 SCENARIO_STEPS = {
     "roles-and-boundaries",
     "bootstrap",
@@ -44,15 +50,18 @@ def _python_environment_variables() -> set[str]:
     for path in (ROOT / "bin").glob("*.py"):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
-            if isinstance(node, ast.Subscript) and isinstance(node.value, ast.Attribute):
-                if (
+            if (
+                isinstance(node, ast.Subscript)
+                and isinstance(node.value, ast.Attribute)
+                and (
                     isinstance(node.value.value, ast.Name)
                     and node.value.value.id == "os"
                     and node.value.attr == "environ"
                     and isinstance(node.slice, ast.Constant)
                     and isinstance(node.slice.value, str)
-                ):
-                    variables.add(node.slice.value)
+                )
+            ):
+                variables.add(node.slice.value)
             if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
                 continue
             if (
@@ -69,7 +78,9 @@ def _python_environment_variables() -> set[str]:
         for node in tree.body:
             if not isinstance(node, ast.Assign):
                 continue
-            if not any(isinstance(target, ast.Name) and target.id == "RETIRED_PROFILE_VARIABLES" for target in node.targets):
+            if not any(
+                isinstance(target, ast.Name) and target.id == "RETIRED_PROFILE_VARIABLES" for target in node.targets
+            ):
                 continue
             if isinstance(node.value, ast.Tuple):
                 variables.update(
@@ -119,7 +130,7 @@ def test_cold_reader_contract_has_not_drifted() -> None:
             failures.append(f"manifest path does not exist: {relative}")
 
     a2i_path = ROOT / "templates" / "a2i-block.md"
-    a2i = a2i_path.read_text(encoding="utf-8") if a2i_path.is_file() else ""
+    a2i = a2i_path.read_bytes() if a2i_path.is_file() else b""
     if not a2i:
         failures.append("templates/a2i-block.md is missing or empty")
     for name in TEMPLATE_NAMES:
@@ -133,9 +144,11 @@ def test_cold_reader_contract_has_not_drifted() -> None:
             missing.append("<base>")
         if "<work-item>" not in text:
             missing.append("<work-item>")
+        if TEMPLATE_SCHEMAS[name] not in text:
+            missing.append(TEMPLATE_SCHEMAS[name])
         if missing:
             failures.append(f"templates/{name} lacks markers: {', '.join(missing)}")
-        if a2i and not text.endswith(a2i):
+        if a2i and not path.read_bytes().endswith(a2i):
             failures.append(f"templates/{name} does not end with the byte-identical A2I block")
 
     public_paths = list((ROOT / "docs").glob("*.rst"))

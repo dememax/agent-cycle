@@ -47,6 +47,13 @@ Probe beyond the tests
 3. Follow a merge or a simplification through every later operation.
    A merge is harmless only if nothing later depends on the distinctions it
    removed.
+4. State a guard's scope without inflating it into prevention or confinement.
+   The S0+ audit and snapshots target honest mistakes and undisclosed
+   deviations within their documented inputs. A bypass that requires
+   deliberate obfuscation outside those inputs is a scope note, not by itself
+   a blocker in an otherwise conforming change. A bypass available through
+   ordinary work, or a claim that the guard prevents what it only detects,
+   remains a finding.
 
 ********
 Report

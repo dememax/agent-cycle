@@ -56,6 +56,66 @@ before it creates turn evidence or a pending marker. A missing anchor,
 unparseable output or a different version is a refusal, not an implicit
 upgrade.
 
+*************************
+Operational environment
+*************************
+
+The tools have a deliberately small environment contract:
+
+``AGENT_CYCLE_PROFILE``
+   Required absolute path of the selected project profile.
+``AUDIT_EXTRA_ALLOW``
+   Optional regular expression for one person-authorized exact-command
+   exception. It is absent in ordinary turns; the exception procedure below
+   governs its use.
+``CODEX``
+   Optional path to the Codex executable. Without it the queue resolves the
+   executable associated with the visible VS Code integration.
+``S0_QUEUE_TIMEOUT``
+   Optional queue submission and observation timeout in seconds; the default
+   is 300.
+``HOME``
+   Required when a profile or validation argument begins with ``~/`` and used
+   by the repository snapshot to locate the configured workspace hierarchy.
+``TMPDIR``
+   Optional parent for the snapshot tool's temporary output; the default is
+   ``/tmp``.
+
+``AGENT_CYCLE_REPO``, ``AGENT_CYCLE_STATE`` and ``S0_STATE_DIR`` are retired.
+They must be unset; their presence is a configuration error. The public gate's
+separate ``AGENT_CYCLE_DENY_LIST`` contract is documented in the README.
+
+********************
+The brief contract
+********************
+
+Every prompt records status, context, the complete work item, rules and the
+final-message contract. It names the base, read and write scope, permitted
+escalations, expected RED failures, validation, stop conditions and the
+selected schema from the approved pinned tool copy. A list entry that is
+evidence is identified by its exact spelling or line range, not by a pattern
+that might select an older similarly formatted entry.
+
+The reusable sources are:
+
+- ``templates/implementation-brief.md`` for a writing turn;
+- ``templates/review-brief.md`` for an independent read-only review;
+- ``templates/orientation-brief.md`` for the first turn in a new chat; and
+- ``templates/exact-exception-brief.md`` when the person has authorized one
+  complete command outside the ordinary allowlist.
+
+The files carry repository copyright comments. When materializing
+``prompt.md``, copy from the ``[S0 DRIVER: ...]`` marker, substitute every
+angle-bracket placeholder and remove no required section. Implementation and
+exact-exception prompts select
+``schemas/implementation-result-v1.json`` from the pinned copy; review and
+orientation prompts select ``schemas/review-result-v1.json`` there.
+
+Every brief ends with the exact contents of ``templates/a2i-block.md``. Do not
+paraphrase that block: it makes assumptions, interpretations, deviations and
+brief defects part of the result contract. Project-specific facts belong in a
+materialized prompt, never in the reusable template.
+
 *****************
 Before the turn
 *****************
@@ -163,6 +223,73 @@ After the turn
    regenerate ``STATE.json`` and ``STATE.md`` in the selected project's state
    directory. The next restart reads the Markdown cache first, but verifies
    its decision-relevant facts by command.
+
+**************************
+Exact-command exceptions
+**************************
+
+The ordinary escalation policy remains ``git add`` and ``git commit`` in the
+profile's repository. An exception exists only when the person authorizes one
+complete command for one named turn. Before queueing it, the driver:
+
+1. materializes ``templates/exact-exception-brief.md`` with the exact command,
+   workdir, reason and no-retry rule;
+2. computes ``AUDIT_EXTRA_ALLOW`` as a start-to-end full match of
+   ``re.escape(command)``;
+3. probes the expression against the exact command and negative cases,
+   including changed options, workdir, spelling, chaining, repetition and a
+   different repository; and
+4. keeps the expression, probes and results in the turn directory.
+
+The audit still parses the command as shell syntax and applies all of its
+safety checks. ``AUDIT_EXTRA_ALLOW`` extends only the final command allowlist;
+it never makes redirection, expansion or an ambiguous call safe. The audit's
+small shell grammar accepts a chain only when every part is independently
+allowed, but an exact-command exception must be invoked alone; its negative
+probes enforce that narrower prompt rule. Run the authorized command at most
+once. If it fails, do not improvise or retry: stop and report the error.
+Afterward, run the audit both with the exact extension and, as useful
+evidence, without it to show that the base guard still rejects the exceptional
+command.
+
+An exception for another repository changes only the repository named by that
+turn. Ordinary commands from the original chat may find that repository
+read-only because it is outside the chat's workspace. Validation that writes
+caches therefore runs on a fresh export under ``/tmp`` when the brief permits
+it; the exception does not widen the workspace or authorize another project.
+
+*******************
+Incident handling
+*******************
+
+S0+ uses a conservative rule: any usage limit, power loss, audit anomaly,
+snapshot anomaly, gate finding or unexpected repository state stops the work.
+The driver preserves the evidence, establishes only the facts needed to name
+the incident, notifies the person and waits for an explicit resumption
+decision. It never substitutes another agent, model or login, and never
+silently retries an effectful turn.
+
+If an implementation turn is known to have been cut short, first record HEAD
+and the worktree status. A person-authorized continuation is a new linked turn
+that states the interruption and observed state; it does not pretend the old
+turn completed. A cut read-only review has no candidate changes to preserve,
+so discard its partial conclusion and start a fresh review.
+
+After a power loss, inspect the active log for in-flight turns, the pending
+marker and queue lock, repository HEAD and status, snapshots, runners and the
+last durable turn record. Delete or repair nothing merely because it looks
+stale. Report the inspection and wait for the person before resuming.
+
+When the public-content gate finds protected material in unpushed commits,
+stop. Adding a later commit does not remove an earlier offending blob from the
+range. If repair therefore requires rewriting unpublished history, the person
+must authorize the exact history command for one turn; use the exception
+procedure above and re-run both validation and the complete publication scan.
+
+Later controller stages may assign typed exit codes, durable journals,
+automatic notifications and explicit ``resume`` or ``abandon`` commands.
+Those behaviours are design constraints, not features implemented by the
+current S0+ scripts; :doc:`stages` marks their status.
 
 ********************
 The turn directory

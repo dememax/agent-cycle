@@ -34,6 +34,7 @@ the second is this repository itself.
    renewal
    tokens
    review
+   decisions
    releasing
 
 ********
@@ -41,7 +42,7 @@ Status
 ********
 
 Release
-   Version |release|; the first work package is complete.
+   Version |release|; the second work package and token tools are complete.
 
 In use
    Stage S0+ (:doc:`stages`). The driver queues every turn itself; nobody
@@ -56,3 +57,25 @@ Done in the first work package
    validation; the public-content push gate; fail-closed repository
    snapshots; usage and renewal facts; the initial lint debt; and project
    profiles.
+
+Done in the second work package
+   Shell-aware escalation auditing, refusal of unreadable usage inputs, the
+   section reader, turn-record generator, profile-driven validation runner and
+   generated state cache.
+
+*************************
+Authoritative locations
+*************************
+
+The versioned sources are ``bin/`` for cycle tools, ``tools/`` for the
+public-content gate and installer, ``schemas/`` for result contracts,
+``profiles/`` for tracked profile examples, ``templates/`` for brief sources,
+and this documentation for procedure. ``cold-reader-manifest.toml`` maps the
+complete cold-reader scenario to those authorities.
+
+A running driver uses an approved pinned read-only copy of ``bin/``,
+``schemas/`` and ``profiles/`` as :doc:`renewal` describes. The selected
+schema comes from that copy, so it stays aligned with the tool performing the
+audit. Old shared tool installations, external schema copies and interim
+scanners are retired historical artifacts. They are not fallbacks, and this
+repository procedure neither consumes nor deletes them.

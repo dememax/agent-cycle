@@ -70,3 +70,24 @@ A usage limit on either agent is an incident (:doc:`design`). Before
 queueing, the driver compares the remaining 5-hour allowance with what
 similar turns used, and waits for the reset rather than let a limit cut a
 turn short.
+
+***********************
+Before-turn checklist
+***********************
+
+Before queueing, the driver:
+
+1. reads the latest rollout ``rate_limits`` entry whose ``limit_id`` is
+   ``codex``;
+2. records that entry's ``used_percent`` and ``resets_at`` exactly as
+   reported, treating a missing fact as unknown;
+3. never infers that a reset occurred from wall-clock time, an older entry or
+   a projected schedule;
+4. compares the remaining 5-hour headroom with the measured consumption of
+   similar completed turns; and
+5. waits for a reported reset instead of queueing work whose expected cost
+   does not fit.
+
+This preflight is a scheduling guard, not a promise that the next turn will
+fit. A limit reached despite it follows the incident procedure in
+:doc:`turn`; roles, models and logins are not substituted.

@@ -1,0 +1,76 @@
+# Copyright (C) 2026 Maxime P. DEMENTYEV
+# SPDX-License-Identifier: GPL-3.0-only
+# Authoritative cold-reader scenario map — agent-cycle project
+
+manifest_version = 1
+
+[[scenario]]
+step = "roles-and-boundaries"
+authorities = [
+    "AGENTS.md",
+    "docs/design.rst",
+    "docs/decisions.rst",
+    "schemas/implementation-result-v1.json",
+    "schemas/review-result-v1.json",
+]
+
+[[scenario]]
+step = "bootstrap"
+authorities = [
+    "docs/renewal.rst",
+    "profiles/agent-cycle.toml",
+    "profiles/check_rst.toml",
+    "bin/codex-identify-thread.py",
+    "templates/orientation-brief.md",
+]
+
+[[scenario]]
+step = "drive-a-turn"
+authorities = [
+    "docs/turn.rst",
+    "bin/codex-queue-turn.sh",
+    "bin/codex-queue-turn.py",
+    "templates/implementation-brief.md",
+    "templates/exact-exception-brief.md",
+    "templates/a2i-block.md",
+    "schemas/implementation-result-v1.json",
+]
+
+[[scenario]]
+step = "audit-and-review"
+authorities = [
+    "docs/turn.rst",
+    "docs/review.rst",
+    "bin/audit-turn.py",
+    "bin/github-snapshot.sh",
+    "bin/validate.py",
+    "templates/review-brief.md",
+    "schemas/review-result-v1.json",
+]
+
+[[scenario]]
+step = "handle-an-incident"
+authorities = [
+    "docs/design.rst",
+    "docs/turn.rst",
+]
+
+[[scenario]]
+step = "renew-sessions"
+authorities = [
+    "docs/renewal.rst",
+    "docs/tokens.rst",
+    "bin/codex-identify-thread.py",
+    "bin/codex-queue-turn.sh",
+    "bin/turn-usage.py",
+    "bin/state.py",
+    "templates/orientation-brief.md",
+]
+
+[[scenario]]
+step = "release"
+authorities = [
+    "docs/releasing.rst",
+    "tools/check-public.sh",
+    "tools/install-gate.sh",
+]
