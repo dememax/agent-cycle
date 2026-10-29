@@ -127,6 +127,16 @@ findings in the code or the documents; do not weaken a configuration to obtain
 a clean run. A remaining suppression is the narrowest error-code-specific
 form, with its reason.
 
+To build the Sphinx HTML documentation directly, independently of check_rst,
+run:
+
+```bash
+python3.14 -m sphinx -W --keep-going -b html docs docs/_build/html
+```
+
+Run it in a fresh export when validating a commit so generated files cannot
+hide a worktree dependency. In the worktree, `docs/_build/` is ignored.
+
 **Current state:** Ruff, mypy, ShellCheck, Prettier and check_rst are clean;
 `LINT-1` cleared the semantic findings inherited at import.
 
