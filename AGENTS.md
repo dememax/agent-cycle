@@ -38,7 +38,9 @@ any push.
 | `tests/` | Generated-log tests and the isolated fake Codex CLI |
 | `schemas/` | Versioned final-message contracts |
 | `profiles/` | Tracked project profiles |
+| `templates/` | Material sources for turn briefs and the A2I block |
 | `docs/` | Sphinx documentation in reStructuredText |
+| `cold-reader-manifest.toml` | Cold-reader scenario steps and their authorities |
 | `.check_formatting.toml` | What check_formatting checks, and where |
 | `.check_rst.toml` | check_rst's Sphinx facts, for the verified documentation build |
 | `pyproject.toml` | Ruff and mypy rules, shared with check_rst and check_formatting |
@@ -61,7 +63,8 @@ SPDX-License-Identifier: GPL-3.0-only
 `GPL-3.0-only`, not "or later". The description line is omitted when the
 file name already says it. `LICENSE` stays the verbatim GPL text. Plain
 JSON has no comment syntax and carries no header; JSONC files (`.vscode/`)
-do, with `//`.
+do, with `//`. The one other exception is `templates/a2i-block.md`: it is
+byte-identical to its source block and carries no repository header.
 
 ## Development environment
 
