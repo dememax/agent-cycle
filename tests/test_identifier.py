@@ -29,12 +29,15 @@ if TYPE_CHECKING:
 
 IDENTIFIER = ROOT / "bin" / "codex-identify-thread.py"
 SINCE = "2039-01-01T00:00:00+00:00"
+NEW_CLI_VERSION = "0.164.0-alpha.11.1"
 
 
-def valid_records(*, thread_id: str, cwd: Path, sentinel: str = SENTINEL) -> list[dict[str, object]]:
+def valid_records(
+    *, thread_id: str, cwd: Path, sentinel: str = SENTINEL, cli_version: str = CLI_VERSION
+) -> list[dict[str, object]]:
     """Build one complete candidate rollout."""
     return [
-        session_meta(thread_id=thread_id, cwd=cwd),
+        session_meta(thread_id=thread_id, cwd=cwd, cli_version=cli_version),
         turn_context(cwd=cwd),
         task_started("turn-initial"),
         composer("turn-initial", sentinel),
@@ -410,22 +413,113 @@ def test_turn_context_value_wins_over_initial_turn_settings(
     assert 'same personality: "pragmatic" (source: turn_context)' in stdout
 
 
-def test_identifier_records_and_reports_cli_versions(
+@pytest.mark.parametrize("write", [False, True], ids=["dry-run", "write"])
+def test_identifier_refuses_unaccepted_cli_version_change(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    write: bool,
+) -> None:
+    """A changed CLI version requires an explicit exact acceptance."""
+    old_log = make_old_log(tmp_path, isolated_env.repo)
+    write_records(
+        candidate_path(isolated_env),
+        valid_records(thread_id="thread-new", cwd=isolated_env.repo, cli_version=NEW_CLI_VERSION),
+    )
+    options = ["--write"] if write else []
+
+    code, stdout, _stderr = run_identifier(isolated_env, SENTINEL, SINCE, old_log, *options)
+
+    assert code == 1
+    assert f"old CLI version: {CLI_VERSION}" in stdout
+    assert f"new CLI version: {NEW_CLI_VERSION}" in stdout
+    assert f"--accept-cli-version {NEW_CLI_VERSION}" in stdout
+    assert not (isolated_env.state / "active-codex-thread.json").exists()
+
+
+def test_identifier_refuses_wrong_accepted_cli_version(
     isolated_env: IsolatedEnvironment,
     tmp_path: Path,
 ) -> None:
-    """A version change is visible but does not prevent a verified renewal."""
+    """The accepted version must name the candidate's version exactly."""
     old_log = make_old_log(tmp_path, isolated_env.repo)
-    candidate = candidate_path(isolated_env)
-    records = valid_records(thread_id="thread-new", cwd=isolated_env.repo)
-    metadata = cast("dict[str, object]", records[0]["payload"])
-    metadata["cli_version"] = "0.164.0-alpha.11.1"
-    write_records(candidate, records)
+    write_records(
+        candidate_path(isolated_env),
+        valid_records(thread_id="thread-new", cwd=isolated_env.repo, cli_version=NEW_CLI_VERSION),
+    )
+
+    code, stdout, _stderr = run_identifier(
+        isolated_env,
+        SENTINEL,
+        SINCE,
+        old_log,
+        "--accept-cli-version",
+        "0.165.0",
+        "--write",
+    )
+
+    assert code == 1
+    assert f"old CLI version: {CLI_VERSION}" in stdout
+    assert f"new CLI version: {NEW_CLI_VERSION}" in stdout
+    assert "--accept-cli-version 0.165.0" in stdout
+    assert not (isolated_env.state / "active-codex-thread.json").exists()
+
+
+def test_identifier_accepts_exact_new_cli_version(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """An exact acceptance permits recording the changed candidate version."""
+    old_log = make_old_log(tmp_path, isolated_env.repo)
+    write_records(
+        candidate_path(isolated_env),
+        valid_records(thread_id="thread-new", cwd=isolated_env.repo, cli_version=NEW_CLI_VERSION),
+    )
+
+    code, stdout, stderr = run_identifier(
+        isolated_env,
+        SENTINEL,
+        SINCE,
+        old_log,
+        "--accept-cli-version",
+        NEW_CLI_VERSION,
+        "--write",
+    )
+
+    assert code == 0, stderr
+    active = json.loads((isolated_env.state / "active-codex-thread.json").read_text(encoding="utf-8"))
+    assert active.get("cli_version") == NEW_CLI_VERSION
+    assert f"old CLI version: {CLI_VERSION}" in stdout
+    assert f"new CLI version: {NEW_CLI_VERSION}" in stdout
+    assert f"accepted CLI version change: {CLI_VERSION} -> {NEW_CLI_VERSION}" in stdout
+
+
+def test_accept_cli_version_requires_value(isolated_env: IsolatedEnvironment, tmp_path: Path) -> None:
+    """The explicit acceptance option requires its VERSION argument."""
+    old_log = make_old_log(tmp_path, isolated_env.repo)
+    write_records(
+        candidate_path(isolated_env),
+        valid_records(thread_id="thread-new", cwd=isolated_env.repo, cli_version=NEW_CLI_VERSION),
+    )
+
+    code, stdout, _stderr = run_identifier(isolated_env, SENTINEL, SINCE, old_log, "--accept-cli-version")
+
+    assert code == 2
+    assert "--accept-cli-version requires VERSION" in stdout
+    assert not (isolated_env.state / "active-codex-thread.json").exists()
+
+
+def test_identifier_keeps_equal_cli_version_behavior(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """Equal old and candidate versions need no explicit acceptance."""
+    old_log = make_old_log(tmp_path, isolated_env.repo)
+    write_records(candidate_path(isolated_env), valid_records(thread_id="thread-new", cwd=isolated_env.repo))
 
     code, stdout, stderr = run_identifier(isolated_env, SENTINEL, SINCE, old_log, "--write")
 
     assert code == 0, stderr
     active = json.loads((isolated_env.state / "active-codex-thread.json").read_text(encoding="utf-8"))
-    assert active.get("cli_version") == "0.164.0-alpha.11.1"
+    assert active.get("cli_version") == CLI_VERSION
     assert f"old CLI version: {CLI_VERSION}" in stdout
-    assert "new CLI version: 0.164.0-alpha.11.1" in stdout
+    assert f"new CLI version: {CLI_VERSION}" in stdout
