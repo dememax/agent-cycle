@@ -4,7 +4,8 @@
 # Fail-closed identification of a new visible Codex thread — agent-cycle project
 """Identify a new visible Codex thread, fail-closed, and record it as active.
 
-Usage: codex-identify-thread.py SENTINEL SINCE_ISO OLD_THREAD_LOG [--write]
+Usage: codex-identify-thread.py SENTINEL SINCE_ISO OLD_THREAD_LOG
+       [--accept-cli-version VERSION] [--write]
 
 SINCE_ISO must carry a time-zone offset (for example 2026-10-25T11:40:00+01:00).
 
@@ -19,8 +20,9 @@ they otherwise look like candidates (same source, originator and cwd).
 It compares the candidate's first effective profile with the old thread's
 latest effective profile on codexlog.STOPPING_KEYS, and prints DIAGNOSTIC_KEYS.
 It also records the candidate's session_meta cli_version and reports both
-threads' versions without requiring them to match. When the old
-thread belongs to another repository (the first chat of a project), its
+threads' versions. A change fails unless --accept-cli-version names the
+candidate's version exactly. When the old thread belongs to another repository
+(the first chat of a project), its
 settings are compared relocated: every string that is the old repository's
 path, or a path under it, is moved to the selected repository first. With --write and
 no stopping difference, it writes active-codex-thread.json in the project's
@@ -65,7 +67,15 @@ def main() -> int:
         print(__doc__)
         return 2
     sentinel, since_iso, old_log = sys.argv[1], sys.argv[2], Path(sys.argv[3])
-    write = "--write" in sys.argv[4:]
+    options = sys.argv[4:]
+    write = "--write" in options
+    accept_cli_version = None
+    if "--accept-cli-version" in options:
+        accept_index = options.index("--accept-cli-version")
+        if accept_index + 1 == len(options) or options[accept_index + 1].startswith("--"):
+            print("FAIL: --accept-cli-version requires VERSION")
+            return 2
+        accept_cli_version = options[accept_index + 1]
     since = datetime.fromisoformat(since_iso)
     if since.tzinfo is None:
         print("FAIL: SINCE_ISO needs a time-zone offset")
@@ -130,6 +140,20 @@ def main() -> int:
         return 1
     print(f"  old CLI version: {old_cli_version}")
     print(f"  new CLI version: {new_cli_version}")
+    if accept_cli_version is not None and accept_cli_version != new_cli_version:
+        print(
+            f"FAIL: --accept-cli-version {accept_cli_version} does not match new CLI version "
+            f"{new_cli_version}; old CLI version is {old_cli_version}"
+        )
+        return 1
+    if old_cli_version != new_cli_version:
+        if accept_cli_version is None:
+            print(
+                f"FAIL: CLI version changed from {old_cli_version} to {new_cli_version}; "
+                f"rerun with --accept-cli-version {new_cli_version}"
+            )
+            return 1
+        print(f"  accepted CLI version change: {old_cli_version} -> {new_cli_version}")
     try:
         new, new_sources = codexlog.initial_effective_profile(recs)
         old, _old_sources = codexlog.latest_effective_profile(old_recs)
