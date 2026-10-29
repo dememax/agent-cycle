@@ -80,6 +80,29 @@ decisions remain with the downstream project.
        after S1a demonstrates a concrete need; unattended work still waits.
      - conditional
      - S1a evidence demonstrates that need.
+   * - LOGFMT-1
+     - A stopping key absent from ``turn_context`` is completed from the
+       applicable ``thread_settings_applied`` event; an unknown key always
+       refuses rather than comparing equal.
+     - active
+     - The Codex generated-log format or stopping-key set changes.
+   * - CLIVER-1
+     - The active-chat record anchors the Codex CLI version; ordinary queueing
+       refuses a mismatch, and re-anchoring follows review as a separate act.
+     - active
+     - A new CLI version or log format is independently reviewed.
+   * - CLIVER/M1
+     - Renewal across CLI versions requires
+       ``--accept-cli-version VERSION`` naming the new version exactly, after
+       its generated-log shape is reviewed.
+     - active
+     - The identifier gains another independently reviewed compatibility
+       mechanism.
+   * - RUFF-17
+     - The cycle's maintained repositories pin and validate with the host's
+       Ruff 0.17.3 after a coordinated compatibility review.
+     - active
+     - A supported Ruff or host-toolchain change is proposed and reviewed.
    * - RENEWAL/D2
      - Renew immediately after active-work compaction or excessive single-call
        pressure, otherwise on the consecutive-median or third-compaction
@@ -120,15 +143,25 @@ decisions remain with the downstream project.
      - completed
      - Never; it records sequencing already performed.
    * - WORKSPACE/D1
-     - Each served project has a separate chat, state directory and profile;
-       escalation stays within that project's repository.
+     - Each served project normally has a separate chat, state directory and
+       profile. A person may authorize one other repository for one exact
+       turn; outside-workspace files remain read-only to ordinary commands, so
+       cache-writing validation uses a fresh export.
      - active
-     - A reviewed isolation mechanism replaces per-project workspaces.
+     - A reviewed isolation mechanism replaces per-project workspaces, or an
+       exception needs broader authority.
    * - PUSHGATE/D1
      - Protected patterns stay in a private deny-list outside the public
        repository, using the documented environment override when needed.
      - active
      - The privacy boundary or gate design changes.
+   * - VALIDATE2/D1
+     - One exact history command repaired gate-rejected unpushed commits;
+       future history repair needs a new exact authorization, complete
+       validation and a new publication scan.
+     - completed
+     - Another gate finding cannot be removed without rewriting unpublished
+       history.
    * - SWITCH/D1
      - Turns use an approved pinned read-only tool copy; the former shared
        installation is retired.
