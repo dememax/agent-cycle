@@ -33,20 +33,20 @@ arguments = [
 
 [[validation]]
 name = "check_rst check --skip-fixable"
-arguments = ["python3.14", "-m", "check_rst", "check", "--skip-fixable"]
+arguments = ["python3.14", "-m", "check_rst", "check", "--skip-fixable", "{rst_files}"]
 environment = { PYTHONPATH = "src" }
 always_show = true
 
 [[validation]]
 name = "check_rst fix --fast"
-arguments = ["python3.14", "-m", "check_rst", "fix", "--fast"]
+arguments = ["python3.14", "-m", "check_rst", "fix", "--fast", "{rst_files}"]
 environment = { PYTHONPATH = "src" }
 always_show = true
 require_clean = true
 
 [[validation]]
 name = "check_rst check"
-arguments = ["python3.14", "-m", "check_rst", "check"]
+arguments = ["python3.14", "-m", "check_rst", "check", "{rst_files}"]
 environment = { PYTHONPATH = "src" }
 always_show = true
 

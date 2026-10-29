@@ -201,6 +201,15 @@ and `require_clean` are boolean flags. The `{base}` placeholder in an argument
 requires `validate.py --base REV`. A leading `~/` in an argument is expanded
 against `HOME`.
 
+The complete argument `{rst_files}` also requires `--base REV`. It expands to
+the repository-relative paths whose final names end in `.rst` and whose Git
+change type in `REV..HEAD` is added, copied, modified, renamed or type-changed.
+For a rename, only the current path is passed; deleted paths are omitted. If
+the range has no such path, the step is recorded as skipped and is not run, so
+the command cannot fall back to inspecting uncommitted files. The placeholder
+must occur exactly once as a complete argument. This addition does not change
+the version-2 profile grammar; profiles that do not use it behave as before.
+
 The `repository` and `state` values must be absolute or start with `~/`; the latter form is
 expanded against `HOME`. Their spelling is canonical: no empty, `.` or `..`
 component and no trailing slash. This check is lexical and does not access the

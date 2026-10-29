@@ -33,6 +33,18 @@ Invalid, unreadable or incomplete profiles and unknown keys are configuration
 errors: the tool exits 2 before writing anything. The snapshot and usage
 report do not load a profile.
 
+A version-2 profile adds a non-empty ordered array of ``[[validation]]``
+tables. Each table names a shell-free argument array and may declare an
+environment plus the ``pytest``, ``always_show`` and ``require_clean`` flags.
+``{base}`` expands inside an argument and requires ``validate.py --base REV``.
+The complete argument ``{rst_files}`` likewise requires ``--base`` and expands
+to the repository-relative, non-deleted ``.rst`` paths added, copied, modified,
+renamed or type-changed in ``REV..HEAD``. A rename contributes its current
+path. When the range contains no eligible path, that step is recorded as
+skipped instead of running without file arguments. A leading ``~/`` in an
+argument expands against ``HOME``. Existing version-1 and version-2 profiles
+remain valid.
+
 The driver runs the tools from a pinned, read-only copy of an approved
 revision, never from the live checkout. Otherwise the implementer's
 commits in this repository would change the tools that audit them. A tool

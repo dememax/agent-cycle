@@ -52,10 +52,13 @@ class StepResult:
     stderr_path: Path
     pytest_passed: int | None
     pytest_failed: int | None
+    skipped_reason: str | None = None
 
     @property
     def failed(self) -> bool:
         """Whether the command or its requested post-condition failed."""
+        if self.skipped_reason is not None:
+            return False
         return self.exit_status != 0 or self.post_condition not in ("not requested", "unchanged")
 
     def summary(self) -> dict[str, Any]:
@@ -72,6 +75,8 @@ class StepResult:
         }
         if self.step.pytest:
             result["pytest"] = {"passed": self.pytest_passed, "failed": self.pytest_failed}
+        if self.skipped_reason is not None:
+            result["skipped"] = self.skipped_reason
         return result
 
 
@@ -101,13 +106,54 @@ def parse_options(arguments: list[str]) -> Options:
     return Options(base, output)
 
 
-def expand_arguments(step: ValidationStep, base: str | None) -> tuple[str, ...]:
-    """Substitute the base revision and expand a leading portable home spelling."""
+def changed_rst_files(repository: Path, base: str) -> tuple[str, ...]:
+    """List non-deleted RST paths in the committed range from base to HEAD."""
+    try:
+        result = subprocess.run(
+            [
+                "git",
+                "diff",
+                "--name-only",
+                "-z",
+                "--diff-filter=ACMRT",
+                "--find-renames",
+                f"{base}..HEAD",
+                "--",
+            ],
+            cwd=repository,
+            capture_output=True,
+            check=False,
+        )
+    except OSError as error:
+        raise UsageError(f"cannot list RST files changed in {base}..HEAD ({error})") from None
+    if result.returncode != 0:
+        message = result.stderr.decode(errors="replace").strip()
+        detail = message or f"git diff exited {result.returncode}"
+        raise UsageError(f"cannot list RST files changed in {base}..HEAD ({detail})")
+    fields = result.stdout.split(b"\0")
+    if not fields or fields[-1] != b"":
+        raise UsageError(f"cannot list RST files changed in {base}..HEAD (malformed git output)")
+    return tuple(os.fsdecode(field) for field in fields[:-1] if os.fsdecode(field).endswith(".rst"))
+
+
+def expand_arguments(step: ValidationStep, repository: Path, base: str | None) -> tuple[str, ...] | None:
+    """Expand revision and RST-file placeholders plus a portable home spelling."""
     if any("{base}" in argument for argument in step.arguments) and base is None:
         raise UsageError(f"validation step {step.name!r} uses {{base}} but --base was not provided")
+    rst_arguments = [argument for argument in step.arguments if "{rst_files}" in argument]
+    if rst_arguments and (rst_arguments != ["{rst_files}"] or step.arguments.count("{rst_files}") != 1):
+        raise UsageError(f"validation step {step.name!r}: {{rst_files}} must be one complete argument")
+    if rst_arguments and base is None:
+        raise UsageError(f"validation step {step.name!r} uses {{rst_files}} but --base was not provided")
+    rst_files = changed_rst_files(repository, base) if rst_arguments and base is not None else ()
+    if rst_arguments and not rst_files:
+        return None
     home = os.environ.get("HOME")
-    expanded = []
+    expanded: list[str] = []
     for argument in step.arguments:
+        if argument == "{rst_files}":
+            expanded.extend(rst_files)
+            continue
         value = argument.replace("{base}", base or "")
         if value.startswith("~/"):
             if not home or not Path(home).is_absolute():
@@ -223,10 +269,33 @@ def run_step(
     )
 
 
+def skip_step(output: Path, index: int, step: ValidationStep, base: str) -> StepResult:
+    """Record an RST-file step whose selected committed range is empty."""
+    reason = f"no .rst files changed in {base}..HEAD"
+    stdout_path, stderr_path = output_paths(output, index, step.name)
+    stdout_path.write_text(f"validate: skipped ({reason})\n", encoding="utf-8")
+    stderr_path.write_bytes(b"")
+    return StepResult(
+        step,
+        (),
+        0,
+        0.0,
+        "not requested",
+        stdout_path,
+        stderr_path,
+        None,
+        None,
+        reason,
+    )
+
+
 def render(results: list[StepResult], output: Path) -> bytes:
     """Render the compact summary followed by every required raw byte stream."""
     lines = [f"Validation output: {output}"]
     for result in results:
+        if result.skipped_reason is not None:
+            lines.append(f"- {result.step.name}: skipped; {result.skipped_reason}")
+            continue
         line = (
             f"- {result.step.name}: exit {result.exit_status}; {result.seconds:.3f}s; "
             f"post-condition {result.post_condition}"
@@ -273,7 +342,7 @@ def main(arguments: list[str]) -> int:
             raise UsageError("selected profile declares no validation steps")
         if not profile.repository.is_dir():
             raise UsageError(f"profile repository is not a directory: {profile.repository}")
-        commands = [(step, expand_arguments(step, options.base)) for step in profile.validation]
+        commands = [(step, expand_arguments(step, profile.repository, options.base)) for step in profile.validation]
         if options.output is not None and options.output.exists():
             raise UsageError(f"--out: {options.output}: already exists")
         output = create_output(options.output)
@@ -282,7 +351,10 @@ def main(arguments: list[str]) -> int:
         return 2
 
     results = [
-        run_step(profile.repository, output, index, step, command) for index, (step, command) in enumerate(commands, 1)
+        skip_step(output, index, step, options.base)
+        if command is None and options.base is not None
+        else run_step(profile.repository, output, index, step, command or ())
+        for index, (step, command) in enumerate(commands, 1)
     ]
     write_completion(output, results)
     sys.stdout.buffer.write(render(results, output))

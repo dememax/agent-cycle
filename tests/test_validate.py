@@ -300,6 +300,156 @@ def test_check_rst_profile_checks_committed_rst_change(
     assert "check_rst check: exit 1" in result.stdout
 
 
+def test_rst_files_placeholder_requires_base_before_running(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    sentinel = isolated_env.repo / "must-not-run"
+    write_validation_profile(
+        isolated_env,
+        [
+            {
+                "name": "rst",
+                "arguments": command(
+                    "from pathlib import Path; Path('must-not-run').touch()",
+                    "{rst_files}",
+                ),
+            }
+        ],
+    )
+    output = tmp_path / "validation"
+
+    result = run_validate(isolated_env, "--out", output)
+
+    assert result.returncode == 2
+    assert result.stdout == ""
+    assert "uses {rst_files} but --base was not provided" in result.stderr
+    assert not sentinel.exists()
+    assert not output.exists()
+
+
+def test_rst_files_placeholder_uses_current_non_deleted_paths(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    initialized = isolated_env.run(["git", "-C", isolated_env.repo, "init", "-q"])
+    assert initialized.returncode == 0, initialized.stderr
+    for name in ("deleted.rst", "modified.rst", "old.rst", "typed.rst"):
+        (isolated_env.repo / name).write_text(f"{name}\n", encoding="utf-8")
+    added = isolated_env.run(["git", "-C", isolated_env.repo, "add", "."])
+    assert added.returncode == 0, added.stderr
+    base = isolated_env.run(
+        [
+            "git",
+            "-C",
+            isolated_env.repo,
+            "-c",
+            "user.name=Generated",
+            "-c",
+            "user.email=generated",
+            "commit",
+            "-q",
+            "-m",
+            "generated base",
+        ]
+    )
+    assert base.returncode == 0, base.stderr
+    (isolated_env.repo / "deleted.rst").unlink()
+    (isolated_env.repo / "modified.rst").write_text("modified\n", encoding="utf-8")
+    (isolated_env.repo / "old.rst").rename(isolated_env.repo / "renamed.rst")
+    (isolated_env.repo / "typed.rst").unlink()
+    (isolated_env.repo / "typed.rst").symlink_to("modified.rst")
+    (isolated_env.repo / "added.rst").write_text("added\n", encoding="utf-8")
+    added = isolated_env.run(["git", "-C", isolated_env.repo, "add", "-A"])
+    assert added.returncode == 0, added.stderr
+    head = isolated_env.run(
+        [
+            "git",
+            "-C",
+            isolated_env.repo,
+            "-c",
+            "user.name=Generated",
+            "-c",
+            "user.email=generated",
+            "commit",
+            "-q",
+            "-m",
+            "generated changes",
+        ]
+    )
+    assert head.returncode == 0, head.stderr
+    write_validation_profile(
+        isolated_env,
+        [
+            {
+                "name": "rst",
+                "arguments": command("import json, sys; print(json.dumps(sys.argv[1:]))", "{rst_files}"),
+                "always_show": True,
+            }
+        ],
+    )
+    output = tmp_path / "validation"
+
+    result = run_validate(isolated_env, "--base", "HEAD^", "--out", output)
+
+    assert result.returncode == 0, result.stderr
+    selected = json.loads((output / "01-rst.stdout").read_text(encoding="utf-8"))
+    assert set(selected) == {"added.rst", "modified.rst", "renamed.rst", "typed.rst"}
+
+
+def test_rst_files_placeholder_skips_an_empty_committed_range(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    initialized = isolated_env.run(["git", "-C", isolated_env.repo, "init", "-q"])
+    assert initialized.returncode == 0, initialized.stderr
+    notes = isolated_env.repo / "notes.txt"
+    for message in ("generated base", "generated change"):
+        notes.write_text(f"{message}\n", encoding="utf-8")
+        added = isolated_env.run(["git", "-C", isolated_env.repo, "add", "notes.txt"])
+        assert added.returncode == 0, added.stderr
+        committed = isolated_env.run(
+            [
+                "git",
+                "-C",
+                isolated_env.repo,
+                "-c",
+                "user.name=Generated",
+                "-c",
+                "user.email=generated",
+                "commit",
+                "-q",
+                "-m",
+                message,
+            ]
+        )
+        assert committed.returncode == 0, committed.stderr
+    (isolated_env.repo / "untracked.rst").write_text("must not select worktree defaults\n", encoding="utf-8")
+    sentinel = isolated_env.repo / "must-not-run"
+    write_validation_profile(
+        isolated_env,
+        [
+            {
+                "name": "rst",
+                "arguments": command(
+                    "from pathlib import Path; Path('must-not-run').touch()",
+                    "{rst_files}",
+                ),
+                "always_show": True,
+            }
+        ],
+    )
+    output = tmp_path / "validation"
+
+    result = run_validate(isolated_env, "--base", "HEAD^", "--out", output)
+
+    assert result.returncode == 0, result.stderr
+    assert "rst: skipped; no .rst files changed in HEAD^..HEAD" in result.stdout
+    assert not sentinel.exists()
+    summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
+    assert summary["steps"][0]["skipped"] == "no .rst files changed in HEAD^..HEAD"
+
+
 def test_existing_output_directory_is_refused_before_running(
     isolated_env: IsolatedEnvironment,
     tmp_path: Path,
