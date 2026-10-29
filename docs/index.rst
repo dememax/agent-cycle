@@ -33,6 +33,7 @@ the second is this repository itself.
    turn
    renewal
    tokens
+   glossary
    review
    decisions
    releasing
