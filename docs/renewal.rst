@@ -83,11 +83,14 @@ A new implementer chat
    driver says which setting to change.
    A project's first chat is compared with another project's chat, after
    moving that chat's repository paths to the new repository.
-4. It reports both chats' ``session_meta`` CLI versions. A difference is
-   expected after an extension upgrade and is not itself a profile failure:
-   renewal is where the driver verifies the changed generated-log shape. It
-   records the new chat and its CLI version (``--write``) as the single active
-   chat. The old chat is never addressed again.
+4. It reports both chats' ``session_meta`` CLI versions. Equal versions need
+   no option. A difference fails closed, before ``--write`` can record
+   anything, and tells the driver to verify the changed generated-log shape.
+   After that review, the driver reruns identification with
+   ``--accept-cli-version VERSION``, where ``VERSION`` must equal the new
+   chat's version exactly. A missing or different value is refused. The
+   successful ``--write`` records the new chat and its CLI version as the
+   single active chat. The old chat is never addressed again.
 5. It sends a read-only orientation turn: the implementer reads the
    instructions and the current state, and restates in its own words its
    role, the escalation rule, the protocol, the JSON contract and the next

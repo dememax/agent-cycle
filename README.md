@@ -65,7 +65,7 @@ practices.
 
 | Tool | Purpose |
 |---|---|
-| `bin/codex-identify-thread.py` | Identify a new visible Codex chat by its first message, fail-closed, check its effective profile, and record its CLI version |
+| `bin/codex-identify-thread.py` | Identify a new visible Codex chat by its first message, fail-closed, check its effective profile, require explicit acceptance of a changed CLI version, and record that version |
 | `bin/codex-queue-turn.sh` | Queue one turn into the single active chat under a lock, enforcing its profile and CLI-version anchors; implemented in `codex-queue-turn.py` |
 | `bin/audit-turn.py` | After a turn: list escalated commands, require the final message to be one strict JSON object, and validate it recursively against a result schema |
 | `bin/github-snapshot.sh` | Snapshot the HEAD, refs and status of each repository under `~/github/*/` and `~/github/*/*/`, failing closed on an incomplete Git query |
