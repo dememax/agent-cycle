@@ -144,9 +144,10 @@ decisions remain with the downstream project.
      - Never; it records sequencing already performed.
    * - WORKSPACE/D1
      - Each served project normally has a separate chat, state directory and
-       profile. A person may authorize one other repository for one exact
-       turn; outside-workspace files remain read-only to ordinary commands, so
-       cache-writing validation uses a fresh export.
+       profile; escalation stays within that project's repository. A person
+       may authorize one other repository for one exact turn; outside-workspace
+       files remain read-only to ordinary commands, so cache-writing
+       validation uses a fresh export.
      - active
      - A reviewed isolation mechanism replaces per-project workspaces, or an
        exception needs broader authority.
