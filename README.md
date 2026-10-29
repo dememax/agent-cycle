@@ -19,6 +19,19 @@ implementer chat and its own state directory. The first project served is
 [check_rst](https://github.com/dememax/check_rst); the second is this
 repository itself.
 
+## Start here
+
+A cold reader can reconstruct the supervised procedure without an earlier
+agent conversation:
+
+1. Begin with the [cold bootstrap](docs/renewal.rst#cold-bootstrap).
+2. Materialize the appropriate brief from the versioned
+   [templates](templates/) rather than copying an earlier turn.
+3. Use [cold-reader-manifest.toml](cold-reader-manifest.toml) to find the
+   authority for each scenario step.
+
+The complete documentation starts at [docs/index.rst](docs/index.rst).
+
 ## Status
 
 - **Release:** version `0.1.1`; the second work package and token tools
@@ -27,21 +40,23 @@ repository itself.
   relays messages.
 - **Tests:** `python3.14 -m pytest` characterizes the tools' refusal paths
   with generated logs and a fake Codex CLI only.
-- **Done in the first work package:** the tests; the audit's fail-closed
-  escalation parser and complete result validation (`AUDIT-2`); the
-  public-content push gate, including its clean-pass evidence (`GATE-2`);
-  fail-closed repository snapshots, including signal handling (`SNAP1/m1`);
-  usage and renewal facts (`USAGE-1`); and the remaining lint findings
-  (`LINT-1`). Project profiles now replace the old repository and state
-  environment variables (below).
+- **Current repository:** version-2 profiles drive ordered validation; the
+  queue anchors the accepted Codex CLI version; and the cold-reader manifest,
+  brief templates and decision ledger make the operating procedure
+  reproducible from versioned files.
+- **Delivered tooling:** the audit and repository snapshots fail closed; the
+  public-content gate checks proposed publications; and the usage, section,
+  turn-record, validation and state tools retain evidence for renewal and
+  review.
 
 ## Documentation
 
-In reStructuredText, built with Sphinx from `docs/`: the design (roles,
-principles, contracts, guards), the stages of automation, the procedure for
-one turn, session renewal and bootstrap, the token economy, and review
-practices. Contributor prerequisites and the authoritative tool versions are
-in [AGENTS.md](AGENTS.md#development-environment).
+The reStructuredText documentation in [docs/](docs/) covers the design
+(roles, principles, contracts and guards), automation stages, one-turn
+procedure, renewal and cold bootstrap, token economy, review practices,
+binding decision ledger and release procedure. Contributor prerequisites and
+the authoritative tool versions are in
+[AGENTS.md](AGENTS.md#development-environment).
 
 ## Warnings
 
