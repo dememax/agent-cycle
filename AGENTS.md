@@ -63,6 +63,33 @@ file name already says it. `LICENSE` stays the verbatim GPL text. Plain
 JSON has no comment syntax and carries no header; JSONC files (`.vscode/`)
 do, with `//`.
 
+## Development environment
+
+The command-line tools in `bin/` use only the Python standard library and
+other modules from `bin/`; their runtime has no third-party Python dependency.
+Development and validation use these versions:
+
+| Component | Version | Installation source | Verification command |
+|---|---:|---|---|
+| Python | 3.14.10 | system distribution | `python3.14 --version` |
+| Ruff | 0.17.3 | Python Package Index | `ruff --version` |
+| mypy | 2.3.1 | Python Package Index | `mypy --version` |
+| pytest | 9.1.1 | Python Package Index | `python3.14 -m pytest --version` |
+| Sphinx | 9.1.0 | Python Package Index | `python3.14 -c 'import sphinx; print(sphinx.__version__)'` |
+| ShellCheck | 0.11.0 | system distribution | `shellcheck --version` |
+| check_rst | 0.7.4 | release `0.7.4` in its public repository | `check_rst --version` |
+| check_formatting | 0.5.3 | release `0.5.3` in its public repository | `check_formatting --version` |
+| Prettier | 3.9.10 | npm registry through `package-lock.json` | `./node_modules/.bin/prettier --version` |
+
+Git and Node.js with npm are also required, but the project does not pin their
+versions. Install the Node dependency with `npm install --ignore-scripts`.
+
+A local `.venv/` is supported and ignored by Git. It may hold the Python
+packages above; the system tools must remain available on `PATH`. The
+repository has no requirements file, Python lock file or otherwise locked
+Python environment, so contributors install the documented versions
+explicitly. `package-lock.json` is the repository's only dependency lock file.
+
 ## Development method
 
 Use TDD for behavioral changes, one RED/GREEN pair per correction:
@@ -79,9 +106,8 @@ a profile mismatch stops the tool with a message; it never guesses.
 ## Validation
 
 Python commands use Python 3.14 explicitly, and so do the tools' shebang
-lines: the formatting rules target Python 3.14 syntax. Ruff 0.17.3 and
-ShellCheck are system executables; mypy is 2.2.0. Prettier is pinned in
-`package.json`: run `npm install --ignore-scripts` once after cloning.
+lines: the formatting rules target Python 3.14 syntax. The development
+versions and their installation sources are listed above.
 
 The project profile declares the full ordered validation, including every
 check in `.check_formatting.toml`. Run it once through the validation runner:

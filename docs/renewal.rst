@@ -24,12 +24,14 @@ each scenario step to its authoritative files.
 Prerequisites
 ===============
 
-Install the versions named in ``AGENTS.md`` and the repository lock files:
-Python 3.14, Git, Ruff, mypy, ShellCheck, check_rst, check_formatting, Sphinx
-and the pinned Node/Prettier dependencies. Install and authenticate the two
-agent products for interactive use. Configure the public-content gate from an
-approved revision as the README describes, but keep its deny-list outside this
-public repository.
+Install the versions in the `development environment table
+<https://github.com/dememax/agent-cycle/blob/main/AGENTS.md#development-environment>`_:
+Python, Ruff, mypy, pytest, Sphinx, ShellCheck, check_rst and check_formatting.
+Git and Node.js with npm are required but not version-pinned. Install Prettier
+from ``package-lock.json``, the repository's only dependency lock file.
+Install and authenticate the two agent products for interactive use. Configure
+the public-content gate from an approved revision as the README describes, but
+keep its deny-list outside this public repository.
 
 The person chooses which agent drives and which implements. They also choose
 the model, reasoning effort and personality for each project and record those

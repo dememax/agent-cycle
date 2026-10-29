@@ -40,7 +40,8 @@ repository itself.
 In reStructuredText, built with Sphinx from `docs/`: the design (roles,
 principles, contracts, guards), the stages of automation, the procedure for
 one turn, session renewal and bootstrap, the token economy, and review
-practices.
+practices. Contributor prerequisites and the authoritative tool versions are
+in [AGENTS.md](AGENTS.md#development-environment).
 
 ## Warnings
 
