@@ -79,7 +79,7 @@ a profile mismatch stops the tool with a message; it never guesses.
 ## Validation
 
 Python commands use Python 3.14 explicitly, and so do the tools' shebang
-lines: the formatting rules target Python 3.14 syntax. Ruff 0.16.9 and
+lines: the formatting rules target Python 3.14 syntax. Ruff 0.17.3 and
 ShellCheck are system executables; mypy is 2.2.0. Prettier is pinned in
 `package.json`: run `npm install --ignore-scripts` once after cloning.
 

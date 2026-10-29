@@ -352,7 +352,7 @@ def test_0164_effective_profile_matches_0162_and_records_sources(
     assert active["profile_baseline"]["personality"] == "pragmatic"
     assert active["profile_baseline"]["workspace_roots"] == [str(isolated_env.repo)]
     assert 'same personality: "pragmatic" (source: thread_settings_applied)' in stdout
-    assert f"same workspace_roots: [\"{isolated_env.repo}\"] (source: thread_settings_applied)" in stdout
+    assert f'same workspace_roots: ["{isolated_env.repo}"] (source: thread_settings_applied)' in stdout
     assert 'same model: "synthetic-model" (source: turn_context)' in stdout
 
 
