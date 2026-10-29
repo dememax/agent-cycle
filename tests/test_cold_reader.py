@@ -11,6 +11,8 @@ from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "cold-reader-manifest.toml"
+GLOSSARY = ROOT / "docs" / "glossary.rst"
+GLOSSARY_FILE_SUFFIXES = (".json", ".md", ".py", ".rst", ".sh", ".toml")
 TEMPLATE_NAMES = (
     "implementation-brief.md",
     "review-brief.md",
@@ -99,6 +101,10 @@ def _shell_environment_variables() -> set[str]:
     return variables
 
 
+def _glossary_terms(text: str) -> set[str]:
+    return set(re.findall(r"^ {3}(?![: ])(\S(?:.*\S)?)$", text, flags=re.MULTILINE))
+
+
 def test_cold_reader_contract_has_not_drifted() -> None:
     failures: list[str] = []
     manifest: dict[str, object] = {}
@@ -165,5 +171,27 @@ def test_cold_reader_contract_has_not_drifted() -> None:
     missing_variables = sorted(variable for variable in operational if variable not in documented)
     if missing_variables:
         failures.append(f"operational environment variables are undocumented: {', '.join(missing_variables)}")
+
+    glossary_text = ""
+    if not GLOSSARY.is_file():
+        failures.append("docs/glossary.rst is missing")
+    else:
+        glossary_text = GLOSSARY.read_text(encoding="utf-8")
+    index_text = (ROOT / "docs" / "index.rst").read_text(encoding="utf-8")
+    if not re.search(r"^ {3}glossary$", index_text, flags=re.MULTILINE):
+        failures.append("docs/index.rst does not include glossary in its toctree")
+
+    decisions_text = (ROOT / "docs" / "decisions.rst").read_text(encoding="utf-8")
+    operational_variables = _python_environment_variables() | _shell_environment_variables()
+    for term in sorted(_glossary_terms(glossary_text)):
+        if term.endswith(GLOSSARY_FILE_SUFFIXES) or term.endswith("/"):
+            matches = [ROOT / term] if "/" in term else list(ROOT.rglob(term))
+            if not any(path.exists() for path in matches):
+                failures.append(f"glossary file or tool term does not exist: {term}")
+        elif re.fullmatch(r"[A-Z][A-Z0-9_]*_[A-Z0-9_]+", term):
+            if term not in operational_variables:
+                failures.append(f"glossary environment-variable term does not exist: {term}")
+        elif re.fullmatch(r"[A-Z][A-Z0-9-]*/[A-Za-z0-9-]+", term) and term not in decisions_text:
+            failures.append(f"glossary decision term does not exist: {term}")
 
     assert not failures, "\n".join(failures)
