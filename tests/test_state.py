@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
@@ -182,6 +183,37 @@ def test_quiet_state_reports_all_available_facts(
         for item in section.values():
             if isinstance(item, dict) and "value" in item:
                 assert_source(item)
+
+
+def test_dirty_entry_count_uses_lf_porcelain_records(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """Only LF, not another byte line boundary, delimits porcelain records."""
+    make_case(isolated_env, tmp_path)
+    real_git = shutil.which("git")
+    assert real_git is not None
+    fake_bin = tmp_path / "generated-bin"
+    fake_bin.mkdir()
+    fake_git = fake_bin / "git"
+    fake_git.write_text(
+        "#!/usr/bin/env python3.14\n"
+        "import os\n"
+        "import sys\n"
+        "if 'status' in sys.argv:\n"
+        "    sys.stdout.buffer.write(b'?? generated\\rdirty\\n')\n"
+        "    raise SystemExit\n"
+        f"os.execv({real_git!r}, [{real_git!r}, *sys.argv[1:]])\n",
+        encoding="utf-8",
+    )
+    fake_git.chmod(0o755)
+
+    path = f"{fake_bin}:{isolated_env.variables['PATH']}"
+    result = isolated_env.run([PYTHON, "-I", STATE, "--write"], extra_env={"PATH": path})
+
+    assert result.returncode == 0, result.stderr
+    payload = json.loads((isolated_env.state / "STATE.json").read_text(encoding="utf-8"))
+    assert fact(payload, "repository", "dirty_entries")["value"] == 1
 
 
 def test_running_turn_is_reported(isolated_env: IsolatedEnvironment, tmp_path: Path) -> None:
