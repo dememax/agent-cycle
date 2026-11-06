@@ -83,12 +83,16 @@ def run_audit(
     extra_env: dict[str, str] | None = None,
     name: str = "audit",
     schema_path: Path | None = None,
+    log_text: str | None = None,
 ) -> tuple[int, str, str, Path]:
     """Run the auditor on a generated log and schema."""
     log = tmp_path / f"{name}.jsonl"
     output = tmp_path / f"{name}-output"
     output.mkdir()
-    write_records(log, records)
+    if log_text is None:
+        write_records(log, records)
+    else:
+        log.write_text(log_text, encoding="utf-8")
     if schema_path is None:
         schema_path = tmp_path / f"{name}-schema.json"
         write_schema(schema_path)
@@ -819,6 +823,115 @@ def test_extracts_last_message_honors_start_line_and_prints_reviewer(
     assert "ESCALATION ok" in stdout
     assert "approvals_reviewer: generated-reviewer" in stdout
     assert (output / "final-reply.md").read_text(encoding="utf-8") == VALID_RESULT
+    assert json.loads((output / "result.json").read_text(encoding="utf-8")) == {"status": "ok"}
+
+
+@pytest.mark.parametrize(
+    "separator",
+    [
+        pytest.param("\u0085", id="u0085"),
+        pytest.param("\u2028", id="u2028"),
+        pytest.param("\u2029", id="u2029"),
+    ],
+)
+def test_raw_json_line_separators_preserve_physical_start_line(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    separator: str,
+) -> None:
+    """START_LINE counts LF-delimited records, not Unicode separators."""
+    ignored = record("response_item", {"type": "message", "content": f"before{separator}after"})
+    selected = completed_log(final=VALID_RESULT)
+    log_text = json.dumps(ignored, ensure_ascii=False) + "\n"
+    log_text += "".join(f"{json.dumps(item)}\n" for item in selected)
+
+    code, stdout, stderr, output = run_audit(
+        isolated_env,
+        tmp_path,
+        [],
+        start=1,
+        log_text=log_text,
+    )
+
+    assert code == 0, stderr
+    assert "Traceback" not in stderr
+    assert "result: valid" in stdout
+    assert json.loads((output / "result.json").read_text(encoding="utf-8")) == {"status": "ok"}
+
+
+@pytest.mark.parametrize(
+    ("invalid_record", "message"),
+    [
+        ("\n", "malformed JSON"),
+        ("{not JSON}\n", "malformed JSON"),
+        ("[]\n", "not an object"),
+        ('{"type":"response_item"}', "incomplete last line"),
+    ],
+    ids=["blank", "malformed", "non-object", "incomplete-before-completion"],
+)
+def test_log_errors_set_bit_eight_without_traceback(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    invalid_record: str,
+    message: str,
+) -> None:
+    """A consumed invalid LF record is one explicit log error."""
+    code, stdout, stderr, output = run_audit(
+        isolated_env,
+        tmp_path,
+        [],
+        log_text=invalid_record,
+    )
+
+    assert code == 8
+    assert stdout.startswith("LOG ERROR: ")
+    assert stdout.count("\n") == 1
+    assert message in stdout
+    assert "Traceback" not in stderr
+    assert not (output / "final-reply.md").exists()
+    assert not (output / "result.json").exists()
+
+
+def test_unreadable_log_sets_bit_eight_without_traceback(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """An unreadable rollout path is reported as a log error."""
+    log = tmp_path / "missing.jsonl"
+    output = tmp_path / "missing-output"
+    output.mkdir()
+    schema = tmp_path / "missing-schema.json"
+    write_schema(schema)
+
+    result = isolated_env.run([PYTHON, "-I", AUDIT, log, "0", schema, output])
+
+    assert result.returncode == 8
+    assert result.stdout.startswith("LOG ERROR: ")
+    assert result.stdout.count("\n") == 1
+    assert "cannot read" in result.stdout
+    assert "Traceback" not in result.stderr
+    assert not (output / "final-reply.md").exists()
+    assert not (output / "result.json").exists()
+
+
+def test_incomplete_later_turn_after_own_completion_is_ignored(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """The lazy audit stops before an incomplete later turn (non-RED guard)."""
+    log_text = "".join(f"{json.dumps(item)}\n" for item in completed_log())
+    log_text += '{"type":"response_item"'
+
+    code, stdout, stderr, output = run_audit(
+        isolated_env,
+        tmp_path,
+        [],
+        log_text=log_text,
+    )
+
+    assert code == 0, stderr
+    assert "Traceback" not in stderr
+    assert "result: valid" in stdout
     assert json.loads((output / "result.json").read_text(encoding="utf-8")) == {"status": "ok"}
 
 
