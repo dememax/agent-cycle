@@ -29,6 +29,12 @@ def display(value: object) -> str:
     return str(value).replace("\\", "\\\\").replace("\r", "\\r").replace("\n", "\\n")
 
 
+def lf_lines(text: str) -> list[str]:
+    """Split only at LF while retaining every delimiter byte-for-byte."""
+    parts = text.split("\n")
+    return [f"{part}\n" for part in parts[:-1]] + ([parts[-1]] if parts[-1] else [])
+
+
 def markdown_headings(lines: list[str]) -> list[Heading]:
     """Return ATX headings outside backtick and tilde fenced blocks."""
     headings = []
@@ -128,7 +134,7 @@ def main(arguments: list[str]) -> int:
     except UnicodeDecodeError:
         return fail(f"{display(path)}: invalid UTF-8")
 
-    lines = text.splitlines(keepends=True)
+    lines = lf_lines(text)
     headings = markdown_headings(lines) if path.suffix == ".md" else rst_headings(lines)
     matches = [heading for heading in headings if heading_matches(heading.text, query)]
     if not matches:
