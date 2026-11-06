@@ -173,7 +173,8 @@ def escalation_allowed(command: str, workdir: str) -> bool:
 
 def display_command(command: str) -> str:
     """Escape controls so one escalation always occupies one output line."""
-    return json.dumps(command, ensure_ascii=False)[1:-1]
+    displayed = json.dumps(command, ensure_ascii=False)[1:-1]
+    return displayed.translate({0x85: r"\u0085", 0x2028: r"\u2028", 0x2029: r"\u2029"})
 
 
 def read_string(source: str, start: int, quote: str) -> tuple[str, int]:
