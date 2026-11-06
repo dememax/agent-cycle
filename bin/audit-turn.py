@@ -15,7 +15,8 @@ Reads the rollout log from START_LINE, and:
   OUT_DIR/result.json, then validates it recursively against the supported
   subset of the selected schema.
 Exit status (bit flags): 1 escalation outside the allowlist, 2 result
-invalid, 4 the turn ended on an error (e.g. usage_limit_exceeded); 0 clean.
+invalid, 4 the turn ended on an error (e.g. usage_limit_exceeded), 8 log
+error; 0 clean.
 
 Custom-tool source is inspected only when its raw text contains
 ``sandbox_permissions`` or ``require_escalated``. This matches the tool-call
@@ -521,43 +522,52 @@ def function_escalations(raw: object) -> tuple[list[Escalation], list[str]]:
 
 
 esc_bad, msgs, reviewer, turn_error = [], [], None, None
-with open(log, encoding="utf-8") as log_file:
-    log_lines = log_file.read().splitlines()[start:]
-for line in log_lines:
-    e = json.loads(line)
-    p = e.get("payload") if isinstance(e.get("payload"), dict) else {}
-    if e.get("type") == "turn_context":
-        reviewer = p.get("approvals_reviewer")
-    if p.get("type") in ("custom_tool_call", "function_call"):
-        raw = p.get("arguments") or p.get("input") or ""
-        if p.get("type") == "function_call":
-            escalations, problems = function_escalations(raw)
-        elif isinstance(raw, str):
-            escalations, problems = source_escalations(raw)
-        else:
-            escalations, problems = [], ["custom_tool_call input is not source text"]
-        for problem in problems:
-            shown = f"needs inspection: {problem}"
-            print(f"{e.get('timestamp', '')[11:19]} ESCALATION BAD [] {shown[:180]}")
-            esc_bad.append(shown)
-        for cmd, workdir in escalations:
-            ok = escalation_allowed(cmd, workdir)
-            shown = display_command(cmd)
-            print(f"{e.get('timestamp', '')[11:19]} ESCALATION {'ok ' if ok else 'BAD'} [{workdir}] {shown[:180]}")
-            if not ok:
-                esc_bad.append(cmd)
-    if p.get("type") == "task_complete":
-        if p.get("error"):
-            err = p["error"]
-            turn_error = (err.get("codex_error_info") or "error", err.get("message", ""))
-        # One turn only: stop at its own completion, so that a later re-audit
-        # never sweeps in the turns that followed.
-        break
-    if p.get("type") == "message" and p.get("role") == "assistant":
-        c = p.get("content") or ""
-        if isinstance(c, list):
-            c = "\n".join(x.get("text", "") for x in c if isinstance(x, dict))
-        msgs.append(c)
+try:
+    for index, e in enumerate(codexlog.iter_records(Path(log))):
+        if index < start:
+            continue
+        p = e.get("payload") if isinstance(e.get("payload"), dict) else {}
+        if e.get("type") == "turn_context":
+            reviewer = p.get("approvals_reviewer")
+        if p.get("type") in ("custom_tool_call", "function_call"):
+            raw = p.get("arguments") or p.get("input") or ""
+            if p.get("type") == "function_call":
+                escalations, problems = function_escalations(raw)
+            elif isinstance(raw, str):
+                escalations, problems = source_escalations(raw)
+            else:
+                escalations, problems = [], ["custom_tool_call input is not source text"]
+            for problem in problems:
+                shown = f"needs inspection: {problem}"
+                print(f"{e.get('timestamp', '')[11:19]} ESCALATION BAD [] {shown[:180]}")
+                esc_bad.append(shown)
+            for cmd, workdir in escalations:
+                ok = escalation_allowed(cmd, workdir)
+                shown = display_command(cmd)
+                print(f"{e.get('timestamp', '')[11:19]} ESCALATION {'ok ' if ok else 'BAD'} [{workdir}] {shown[:180]}")
+                if not ok:
+                    esc_bad.append(cmd)
+        if p.get("type") == "task_complete":
+            if p.get("error"):
+                err = p["error"]
+                turn_error = (err.get("codex_error_info") or "error", err.get("message", ""))
+            # One turn only: stop at its own completion, so that a later re-audit
+            # never sweeps in the turns that followed.
+            break
+        if p.get("type") == "message" and p.get("role") == "assistant":
+            c = p.get("content") or ""
+            if isinstance(c, list):
+                c = "\n".join(x.get("text", "") for x in c if isinstance(x, dict))
+            msgs.append(c)
+except codexlog.LogError as error:
+    print(f"LOG ERROR: {error}")
+    sys.exit(8 | (1 if esc_bad else 0))
+except OSError as error:
+    print(f"LOG ERROR: {log}: cannot read ({error})")
+    sys.exit(8 | (1 if esc_bad else 0))
+except UnicodeError as error:
+    print(f"LOG ERROR: {log}: invalid UTF-8 ({error})")
+    sys.exit(8 | (1 if esc_bad else 0))
 print("approvals_reviewer:", reviewer)
 if turn_error:
     # A turn that ended on an error (usage limit, auth, ...) is an incident in

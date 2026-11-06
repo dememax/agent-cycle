@@ -914,6 +914,31 @@ def test_unreadable_log_sets_bit_eight_without_traceback(
     assert not (output / "result.json").exists()
 
 
+def test_log_error_combines_only_with_established_escalation_bit(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """A prior forbidden escalation survives a later consumed log error."""
+    forbidden = tool_call("git status", str(isolated_env.repo))
+    log_text = f"{json.dumps(forbidden)}\n{{not JSON}}\n"
+
+    code, stdout, stderr, output = run_audit(
+        isolated_env,
+        tmp_path,
+        [],
+        log_text=log_text,
+    )
+
+    assert code == 9
+    assert stdout.count("ESCALATION BAD") == 1
+    assert stdout.count("LOG ERROR: ") == 1
+    assert "result:" not in stdout
+    assert "TURN ERROR:" not in stdout
+    assert "Traceback" not in stderr
+    assert not (output / "final-reply.md").exists()
+    assert not (output / "result.json").exists()
+
+
 def test_incomplete_later_turn_after_own_completion_is_ignored(
     isolated_env: IsolatedEnvironment,
     tmp_path: Path,

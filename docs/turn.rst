@@ -191,9 +191,14 @@ After the turn
    (:doc:`design`, Guards); 2 for a final message that is not exactly one
    strict JSON object, whose object fails recursive schema validation, or
    whose schema uses an unsupported keyword (:doc:`design`, Contracts); 4
-   for a turn that ended on an error, such as a usage limit. It always
-   writes ``final-reply.md``, and ``result.json`` only when the complete
-   message parses as one JSON object.
+   for a turn that ended on an error, such as a usage limit; 8 for a rollout
+   log record that is blank, malformed, not an object or unfinished when
+   consumed, for invalid UTF-8, or for a log that cannot be read. On a log
+   error it prints any escalation lines already established, then exactly
+   one ``LOG ERROR: DETAIL`` line. It preserves an already established bit
+   1, does not infer bits 2 or 4, and writes neither ``final-reply.md`` nor
+   ``result.json``. Otherwise, it always writes ``final-reply.md``, and
+   ``result.json`` only when the complete message parses as one JSON object.
    Save its standard output in ``audit.txt``, then append ``audit exit N``
    with the command's exit status; the record generator never infers it.
    Commands are tokenized as shell syntax; other operators, redirections and

@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import os
 import tomllib
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
@@ -217,11 +218,12 @@ def canonical(text: str) -> str:
     return text.rstrip("\n")
 
 
-def records(path: Path) -> list[dict[str, Any]]:
-    """Every line must be one JSON object; nothing is skipped."""
-    out: list[dict[str, Any]] = []
-    with Path(path).open(encoding="utf-8") as stream:
+def iter_records(path: Path) -> Iterator[dict[str, Any]]:
+    """Yield strict LF-delimited JSON objects lazily; nothing is skipped."""
+    count = 0
+    with Path(path).open(encoding="utf-8", newline="\n") as stream:
         for number, line in enumerate(stream, 1):
+            count = number
             if not line.endswith("\n"):
                 raise IncompleteLastLine(f"{path}:{number}: incomplete last line")
             try:
@@ -230,10 +232,14 @@ def records(path: Path) -> list[dict[str, Any]]:
                 raise LogError(f"{path}:{number}: malformed JSON ({error})") from None
             if not isinstance(record, dict):
                 raise LogError(f"{path}:{number}: not an object")
-            out.append(record)
-    if not out:
+            yield record
+    if count == 0:
         raise LogError(f"{path}: empty log")
-    return out
+
+
+def records(path: Path) -> list[dict[str, Any]]:
+    """Read every strict LF-delimited JSON object; nothing is skipped."""
+    return list(iter_records(path))
 
 
 def session_meta(recs: list[dict[str, Any]]) -> dict[str, Any]:
