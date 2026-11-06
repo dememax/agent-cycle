@@ -369,12 +369,24 @@ def test_amend_equals_form_accepts_exact_authorization(
     assert "ESCALATION ok" in stdout
 
 
+@pytest.mark.parametrize(
+    ("separator", "escaped", "expected_code"),
+    [
+        pytest.param("\n", r"\n", 1, id="line-feed"),
+        pytest.param("\u0085", r"\u0085", 0, id="u0085"),
+        pytest.param("\u2028", r"\u2028", 0, id="u2028"),
+        pytest.param("\u2029", r"\u2029", 0, id="u2029"),
+    ],
+)
 def test_escalation_display_escapes_control_characters(
     isolated_env: IsolatedEnvironment,
     tmp_path: Path,
+    separator: str,
+    escaped: str,
+    expected_code: int,
 ) -> None:
     """A command cannot forge an extra audit-output line."""
-    command = "git commit -m generated\ngit push origin main"
+    command = f"git commit -m generated{separator}git push origin main"
 
     code, stdout, _stderr, _output = run_audit(
         isolated_env,
@@ -382,8 +394,9 @@ def test_escalation_display_escapes_control_characters(
         completed_log(escalated_function_call(command, str(isolated_env.repo))),
     )
 
-    assert code == 1
-    assert "git commit -m generated\\ngit push origin main" in stdout
+    assert code == expected_code
+    assert f"git commit -m generated{escaped}git push origin main" in stdout
+    assert len(stdout.splitlines()) == 3
 
 
 @pytest.mark.parametrize(
