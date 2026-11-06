@@ -87,6 +87,27 @@ def test_markdown_whole_text_match(tmp_path: Path) -> None:
     assert result.stderr == f"{document}:2-3\n".encode()
 
 
+@pytest.mark.parametrize(
+    "separator",
+    [
+        pytest.param("\u0085", id="u0085"),
+        pytest.param("\u2028", id="u2028"),
+        pytest.param("\u2029", id="u2029"),
+    ],
+)
+def test_reported_lines_use_lf_physical_boundaries(tmp_path: Path, separator: str) -> None:
+    """Unicode separators are content, not source-line or heading boundaries."""
+    document = tmp_path / "physical-lines.md"
+    selected = f"## Target\nbefore{separator}## Not a heading\nafter\n"
+    document.write_text(f"# Plan\n{selected}## Next\n", encoding="utf-8")
+
+    result = run_reader(document, "Target")
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == selected.encode()
+    assert result.stderr == f"{document}:2-4\n".encode()
+
+
 def test_rst_adornment_order_defines_section_levels(tmp_path: Path) -> None:
     document = tmp_path / "record.rst"
     document.write_text(
