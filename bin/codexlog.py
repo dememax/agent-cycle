@@ -13,10 +13,12 @@ from __future__ import annotations
 import json
 import os
 import tomllib
-from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any, cast
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 
 class ProfileError(ValueError):

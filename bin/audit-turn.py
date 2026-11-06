@@ -527,7 +527,8 @@ try:
     for index, e in enumerate(codexlog.iter_records(Path(log))):
         if index < start:
             continue
-        p = e.get("payload") if isinstance(e.get("payload"), dict) else {}
+        payload = e.get("payload")
+        p = payload if isinstance(payload, dict) else {}
         if e.get("type") == "turn_context":
             reviewer = p.get("approvals_reviewer")
         if p.get("type") in ("custom_tool_call", "function_call"):
