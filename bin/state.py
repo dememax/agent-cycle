@@ -109,7 +109,7 @@ def repository_facts(repository: Path) -> dict[str, Fact]:
     dirty = git_fact(
         repository,
         ("status", "--porcelain=v1", "-uall"),
-        lambda output: len(output.splitlines()),
+        lambda output: output.count(b"\n"),
     )
     branch_name = branch["value"]
     if isinstance(branch_name, str):
