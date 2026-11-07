@@ -30,7 +30,7 @@ later stages are designed, not built.
      - The evidence gate. The driver summarizes the record of S0, the
        implementer reviews the summary, and the person decides whether to
        stay or to build the next stage.
-     - decided: stay with S0
+     - decided: stay with S0+
    * - S1b
      - A supervised minimal ``once``: one round driven by a local
        controller, with the mechanical RED/GREEN gate in a disposable

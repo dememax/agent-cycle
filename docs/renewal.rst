@@ -11,6 +11,26 @@ context (:doc:`tokens`). Renewal replaces it with a fresh one that works
 from the durable records alone: the project's instructions and plan, the
 record, the turn directories and the active-chat record.
 
+*********************
+Command permissions
+*********************
+
+Command rules are conveniences, not a scope boundary:
+
+- Each segment of a shell command line is authorized separately.
+- A command rule does not cover redirects, command substitutions, variable
+  expansions, loops or ``cd``. Recurring work avoids those forms.
+- A read outside the session's working directories asks for permission even
+  when the command itself is allowed.
+- A recurring arbitrary script becomes a reviewed fixed tool, allowed by its
+  absolute path.
+- Interpreters that run supplied programs, such as ``sed`` and ``awk``, are
+  not allowed by rule. Read line ranges with the editor's own tools.
+- A file-writing command may be checked beyond the allow list. Recurring
+  writes therefore go through reviewed fixed tools.
+- Authorizing the queue removes a checkpoint, so the driver announces every
+  queued turn in the chat.
+
 ****************
 Cold bootstrap
 ****************

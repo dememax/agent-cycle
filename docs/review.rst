@@ -31,6 +31,23 @@ Read a named part of a Markdown or reStructuredText plan or record with
    the author identity. A false claim in a message is a finding.
 5. Validate your own fixtures before reporting from them. An invalid
    input makes a false finding.
+6. Read every changed line and report every public-API compatibility
+   difference, including one that no test covers.
+
+******************
+External reports
+******************
+
+Handle an external defect report, such as a public issue against the tools,
+in this order:
+
+1. Reproduce it with synthetic inputs.
+2. Have an independent agent review the report and reproduction read-only.
+3. Fix it by TDD, with a RED commit followed by its GREEN commit.
+4. Reference the report from the commits without using a keyword that closes
+   it automatically.
+5. The owner publishes the fix and closes the report.
+6. Sanitize every public reply so it discloses no protected project material.
 
 ************************
 Probe beyond the tests

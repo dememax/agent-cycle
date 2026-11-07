@@ -28,9 +28,12 @@ Habits that follow
   section needed.
 - Batch coherent edits into one call where that is safe, and do not
   read back a file just written.
-- Launch long jobs once, detached, with a completion marker and compact
-  output (counts, and failures only), rather than polling them call by
-  call. A detached job also survives a usage limit that ends the turn.
+- Launch long jobs once, with a completion marker and compact output (counts,
+  and failures only), rather than polling them call by call. A launch inside
+  a turn's execution wrapper may not survive the turn. A launch from the
+  agent's persistent session can survive the turn, but not the end of the
+  agent's sandbox, such as closing its chat. A run that must outlive the chat
+  is launched outside every agent sandbox.
 - Keep reports bounded. The final message's report states results and
   points to evidence by path; the reviewer opens the evidence only when it
   needs to.

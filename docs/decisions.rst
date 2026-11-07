@@ -41,8 +41,10 @@ decisions remain with the downstream project.
      - conditional
      - A measured need justifies packaging or a unified command.
    * - P3
-     - Plans and protected project material stay outside this public tooling
-       repository and enter a turn only through explicit narrow scope.
+     - Plans, chronological records, run state and protected project material
+       stay outside this public tooling repository. Each served project's
+       procedure decides where they live, and they enter a turn only through
+       explicit narrow scope.
      - active
      - The privacy boundary or repository visibility changes.
    * - P4
@@ -196,3 +198,31 @@ decisions remain with the downstream project.
        produced the seven-point implementation scope.
      - completed
      - The cold-reader drift test exposes another missing authority.
+   * - CONC/D1
+     - A review names exact commit IDs. Each served project's procedure
+       defines the owner's approval, and an amend or rebase cancels the
+       review.
+     - active
+     - Commit review or the served project's approval procedure changes.
+   * - CONC/D2
+     - Several-driver use is staged. Turns remain sequential until a
+       host-local lease and a snapshot that categorizes changes by repository
+       and owner exist.
+     - unimplemented
+     - The concurrency stage is implemented or its design changes.
+   * - CONC/D4
+     - Manual relays in other projects are unrestricted and attributed in
+       snapshots.
+     - active
+     - A lease or automated relay replaces the manual procedure.
+   * - CONC/LEASE-D1
+     - The future lease lives in one shared coordination namespace under the
+       state root.
+     - unimplemented
+     - Lease implementation begins or the coordination design changes.
+   * - BRIEF113/F1
+     - Pass/fail evidence uses test-owned copies and explicit output roots; a
+       gate does not watch another served project's mutable directory as its
+       oracle.
+     - active
+     - A reviewed general isolation rule replaces this narrow rule.
