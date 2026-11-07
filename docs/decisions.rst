@@ -222,7 +222,6 @@ decisions remain with the downstream project.
      - Lease implementation begins or the coordination design changes.
    * - BRIEF113/F1
      - Pass/fail evidence uses test-owned copies and explicit output roots; a
-       gate does not watch another served project's mutable directory as its
-       oracle.
+       gate does not use an external mutable directory as its oracle.
      - active
      - A reviewed general isolation rule replaces this narrow rule.
