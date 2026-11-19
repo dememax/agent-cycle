@@ -80,8 +80,8 @@ Development and validation use these versions:
 | pytest | 9.1.1 | Python Package Index | `python3.14 -m pytest --version` |
 | Sphinx | 9.1.0 | Python Package Index | `python3.14 -c 'import sphinx; print(sphinx.__version__)'` |
 | ShellCheck | 0.11.0 | system distribution | `shellcheck --version` |
-| check_rst | 0.7.4 | release `0.7.4` in its public repository | `check_rst --version` |
-| check_formatting | 0.5.3 | release `0.5.3` in its public repository | `check_formatting --version` |
+| check_rst | 0.7.5 | release `0.7.5` in its public repository | `check_rst --version` |
+| check_formatting | 0.5.5 | release `0.5.5` in its public repository | `check_formatting --version` |
 | Prettier | 3.9.10 | npm registry through `package-lock.json` | `./node_modules/.bin/prettier --version` |
 
 Git and Node.js with npm are also required, but the project does not pin their
@@ -143,15 +143,63 @@ hide a worktree dependency. In the worktree, `docs/_build/` is ignored.
 **Current state:** Ruff, mypy, ShellCheck, Prettier and check_rst are clean;
 `LINT-1` cleared the semantic findings inherited at import.
 
-After an RST edit, run check_rst's loop on `docs/` (`check --skip-fixable`,
-`fix --fast`, `check`) and review its semantic warnings.
+After an RST edit, run check_rst's three-step loop, described in the next
+section.
 
 ## Documentation structure
 
-The documentation is reStructuredText built with Sphinx, structured like
-check_rst's. Titles have an overline, like check_rst's. Declare a new
-title with a nine-character placeholder of the sibling titles' style, and
-let `check_rst fix --fast` materialize the adornment lengths.
+The documentation is reStructuredText in `docs/`, built with Sphinx and
+structured like check_rst's. RST uses the system-installed `check_rst`
+command, invoked by name. Universal syntax, options and semantic rules belong
+to `check_rst --help`, `check_rst COMMAND --help` and check_rst's
+[guide](https://github.com/dememax/check_rst/blob/main/docs/guide.rst); this
+repository records only its local facts. The workflow below relies on
+`outline`'s `o` and `u` style codes, so it needs check_rst 0.7.3 or later.
+
+`.check_rst.toml` declares the Sphinx source `docs` and the build directory
+`/tmp/agent-cycle-sphinx-build`. All of `docs/` is maintained: it is a clean
+full baseline, which `check_formatting --all` scans recursively through
+`[rst].dir`. No file there is generated or excluded.
+
+After an RST edit, run from the repository root:
+
+```bash
+check_rst check --skip-fixable
+check_rst fix --fast
+check_rst check
+```
+
+The first command is the semantic review: it hides what `fix` would resolve,
+so the WARNINGs and non-fixable ERRORs it shows are yours to review and
+resolve before any mutation. The second is the mechanical mutation: it applies
+only fixable corrections. The third is the final validation of the result.
+Bare selection is Git-scoped; explicit files and `--recursive` mean whole-file
+intent. In a shared dirty worktree, pass the same owned-file allowlist with
+`--git-scope` to all three commands, for example
+`check_rst check --skip-fixable --git-scope docs/turn.rst`.
+
+For a new heading, write a nine-character check_rst title placeholder (a
+check_rst convention, not RST syntax) in the style of its sibling titles, as
+`outline` shows it on their lines: `o` means the same line above and below the
+title, `u` an underline only. Every title in `docs/` has an overline, like
+check_rst's. Leave a blank line before and after the heading. For a new depth,
+use the next free section character that `outline` reports. Let `fix --fast`
+compute the adornment geometry; never count adornment characters, not even in
+a scratch file. Never use one character both with and without an overline in a
+file: Docutils reads the two forms as two styles, and `fix` refuses that
+ambiguity.
+
+Global options such as `--sphinx-src` and `--no-config` go before the command:
+`check_rst --no-config check FILE`.
+
+For a cold reader, use `check_rst outline FILE` when the structure or target
+is unknown, and `check_rst context ENTRY FILE` for one known entry or explicit
+label. Use `check_rst targets --exact LABEL` when a label's file is unknown.
+These queries report physical locations: read a reported range directly, since
+a raw text match cannot establish depth, parentage or entry boundaries. Use
+`check_rst refs FILE` for a document's links, `check_rst refs --target LABEL`
+for a label's exact uses, and `check_rst compare` to explain an existing Git
+change. Never truncate check_rst output or a diff preview with a pipe.
 
 ## Commits
 
