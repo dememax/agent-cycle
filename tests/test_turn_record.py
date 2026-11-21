@@ -189,8 +189,7 @@ def test_log_error_audit_is_recorded(
 
     assert result.returncode == 0, result.stderr
     assert (
-        f"- Audit: {expected_count}; result unavailable; "
-        "LOG ERROR: generated malformed rollout line; exit 9\n"
+        f"- Audit: {expected_count}; result unavailable; LOG ERROR: generated malformed rollout line; exit 9\n"
     ) in result.stdout.decode()
 
 

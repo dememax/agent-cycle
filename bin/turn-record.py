@@ -40,6 +40,7 @@ class Audit:
     bad: int
     result: str
     turn_error: str | None
+    log_error: str | None
     exit_status: int | None
 
 
@@ -49,7 +50,8 @@ def read_required(turn: Path, name: str) -> str:
     if not path.exists():
         raise InputError(path, "missing required file")
     try:
-        return path.read_text(encoding="utf-8")
+        with path.open(encoding="utf-8", newline="\n") as stream:
+            return stream.read()
     except OSError, UnicodeError:
         raise InputError(path, "cannot read") from None
 
@@ -75,7 +77,9 @@ def one_line(path: Path, content: str) -> str:
 
 def parse_audit(path: Path, content: str) -> Audit:
     """Parse the stable stdout grammar of audit-turn.py plus its saved exit."""
-    lines = content.splitlines()
+    lines = content.split("\n")
+    if lines and lines[-1] == "":
+        lines.pop()
     index = 0
     ok = 0
     bad = 0
@@ -88,6 +92,16 @@ def parse_audit(path: Path, content: str) -> Audit:
         else:
             bad += 1
         index += 1
+
+    if index < len(lines) and lines[index].startswith("LOG ERROR: ") and lines[index] != "LOG ERROR: ":
+        log_error = lines[index]
+        index += 1
+        if index >= len(lines):
+            raise InputError(path, "cannot parse")
+        match = re.fullmatch(r"audit exit ([0-9]+)", lines[index])
+        if match is None or index + 1 != len(lines):
+            raise InputError(path, "cannot parse")
+        return Audit(ok, bad, "unavailable", None, log_error, int(match.group(1)))
 
     if index >= len(lines) or not lines[index].startswith("approvals_reviewer:"):
         raise InputError(path, "cannot parse")
@@ -112,7 +126,7 @@ def parse_audit(path: Path, content: str) -> Audit:
         index += 1
     if index != len(lines):
         raise InputError(path, "cannot parse")
-    return Audit(ok, bad, result, turn_error, exit_status)
+    return Audit(ok, bad, result, turn_error, None, exit_status)
 
 
 def parse_snapshot(path: Path, content: str) -> dict[str, dict[str, str]]:
@@ -266,6 +280,8 @@ def main(arguments: list[str]) -> int:
         audit_facts = f"- Audit: {total} {noun} ({audit.ok} ok, {audit.bad} BAD); result {audit.result}"
         if audit.turn_error is not None:
             audit_facts += f"; {audit.turn_error}"
+        if audit.log_error is not None:
+            audit_facts += f"; {audit.log_error}"
         audit_facts += "; exit status not recorded" if audit.exit_status is None else f"; exit {audit.exit_status}"
         bullets.append(audit_facts)
         bullets.extend(snapshot_bullets(before, after))

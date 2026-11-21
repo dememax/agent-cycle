@@ -203,7 +203,10 @@ After the turn
    ``result.json``. Otherwise, it always writes ``final-reply.md``, and
    ``result.json`` only when the complete message parses as one JSON object.
    Save its standard output in ``audit.txt``, then append ``audit exit N``
-   with the command's exit status; the record generator never infers it.
+   with the command's exit status; the record generator never infers it. The
+   record generator accepts the normal audit grammar or the early log-error
+   grammar (established escalation lines, one ``LOG ERROR: DETAIL`` line and
+   the saved exit), and preserves the error and status in the factual record.
    Commands are tokenized as shell syntax; other operators, redirections and
    expansions are flagged, and ``git commit --amend`` needs the turn's exact
    authorization.
@@ -322,6 +325,7 @@ The turn directory
    * - ``audit.txt``, ``final-reply.md``, ``result.json``
      - the audit's standard output followed by ``audit exit N``, and the final
        message; ``result.json`` only when the complete message parses as one
-       JSON object
+       JSON object; ``audit.txt`` can instead end after the strict reader's one
+       log-error line and saved exit
    * - ``usage.json``, ``usage-row.txt``
      - both agents' usage and the renewal facts for the turn
