@@ -400,6 +400,73 @@ def test_escalation_display_escapes_control_characters(
 
 
 @pytest.mark.parametrize(
+    ("separator", "escaped"),
+    [
+        pytest.param("\n", r"\n", id="line-feed"),
+        pytest.param("\u0085", r"\u0085", id="u0085"),
+        pytest.param("\u2028", r"\u2028", id="u2028"),
+        pytest.param("\u2029", r"\u2029", id="u2029"),
+    ],
+)
+def test_workdir_display_escapes_control_characters(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    separator: str,
+    escaped: str,
+) -> None:
+    """A workdir cannot forge an extra audit-output line."""
+    workdir = f"/generated/project{separator}forged"
+
+    code, stdout, _stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        completed_log(escalated_function_call("git add generated", workdir)),
+    )
+
+    assert code == 1
+    assert f"[/generated/project{escaped}forged]" in stdout
+    assert len(stdout.splitlines()) == 3
+
+
+@pytest.mark.parametrize(
+    ("separator", "escaped"),
+    [
+        pytest.param("\n", r"\n", id="line-feed"),
+        pytest.param("\u0085", r"\u0085", id="u0085"),
+        pytest.param("\u2028", r"\u2028", id="u2028"),
+        pytest.param("\u2029", r"\u2029", id="u2029"),
+    ],
+)
+def test_turn_error_display_escapes_control_characters(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    separator: str,
+    escaped: str,
+) -> None:
+    """A turn error cannot forge an extra audit-output line."""
+    completion = task_complete("turn-audit")
+    payload = completion["payload"]
+    assert isinstance(payload, dict)
+    payload["error"] = {
+        "codex_error_info": f"generated-kind{separator}forged-kind",
+        "message": f"generated-message{separator}forged-message",
+    }
+
+    code, stdout, _stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        [assistant_message(VALID_RESULT), completion],
+    )
+
+    assert code == 4
+    assert (
+        f"TURN ERROR: generated-kind{escaped}forged-kind: "
+        f"generated-message{escaped}forged-message"
+    ) in stdout
+    assert len(stdout.splitlines()) == 3
+
+
+@pytest.mark.parametrize(
     "command",
     [
         "git commit --amend -F generated",
