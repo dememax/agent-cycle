@@ -339,6 +339,26 @@ def test_write_records_only_stopping_profile_keys(
     assert f"written: {active_path}" in stdout
 
 
+def test_identifies_new_profile_without_obsolete_personality(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """An old personality key is ignored when the new profile omits it."""
+    old_log = make_old_log(tmp_path, isolated_env.repo)
+    records = valid_records(thread_id="thread-new", cwd=isolated_env.repo)
+    new_context = cast("dict[str, object]", records[1]["payload"])
+    new_context.pop("personality")
+    write_records(candidate_path(isolated_env), records)
+
+    code, stdout, stderr = run_identifier(isolated_env, SENTINEL, SINCE, old_log, "--write")
+
+    assert code == 0, stderr
+    active = json.loads((isolated_env.state / "active-codex-thread.json").read_text(encoding="utf-8"))
+    assert set(active["profile_baseline"]) == set(STOPPING_KEYS)
+    assert "personality" not in active["profile_baseline"]
+    assert "ignored obsolete legacy key: personality (old present, new absent)" in stdout
+
+
 def test_0164_effective_profile_matches_0162_and_records_sources(
     isolated_env: IsolatedEnvironment,
     tmp_path: Path,
@@ -352,9 +372,9 @@ def test_0164_effective_profile_matches_0162_and_records_sources(
 
     assert code == 0, stderr
     active = json.loads((isolated_env.state / "active-codex-thread.json").read_text(encoding="utf-8"))
-    assert active["profile_baseline"]["personality"] == "pragmatic"
+    assert "personality" not in active["profile_baseline"]
     assert active["profile_baseline"]["workspace_roots"] == [str(isolated_env.repo)]
-    assert 'same personality: "pragmatic" (source: thread_settings_applied)' in stdout
+    assert "ignored obsolete legacy key: personality (old present, new present)" in stdout
     assert f'same workspace_roots: ["{isolated_env.repo}"] (source: thread_settings_applied)' in stdout
     assert 'same model: "synthetic-model" (source: turn_context)' in stdout
 
@@ -376,7 +396,7 @@ def test_identifier_refuses_0164_without_initial_turn_settings(
     code, stdout, _stderr = run_identifier(isolated_env, SENTINEL, SINCE, old_log, "--write")
 
     assert code == 1
-    assert "unknown stopping keys: workspace_roots, personality" in stdout
+    assert "unknown stopping keys: workspace_roots" in stdout
     assert not (isolated_env.state / "active-codex-thread.json").exists()
 
 
@@ -394,14 +414,14 @@ def test_identifier_ignores_settings_outside_initial_turn(
     code, stdout, _stderr = run_identifier(isolated_env, SENTINEL, SINCE, old_log, "--write")
 
     assert code == 1
-    assert "unknown stopping keys: workspace_roots, personality" in stdout
+    assert "unknown stopping keys: workspace_roots" in stdout
 
 
-def test_turn_context_value_wins_over_initial_turn_settings(
+def test_identifier_ignores_obsolete_personality_value_difference(
     isolated_env: IsolatedEnvironment,
     tmp_path: Path,
 ) -> None:
-    """Settings events fill absent keys but never override context values."""
+    """Obsolete personality values never become a stopping difference."""
     old_log = make_old_log(tmp_path, isolated_env.repo)
     records = valid_records(thread_id="thread-new", cwd=isolated_env.repo)
     records.insert(-1, thread_settings_applied(cwd=isolated_env.repo, personality="different"))
@@ -410,7 +430,45 @@ def test_turn_context_value_wins_over_initial_turn_settings(
     code, stdout, stderr = run_identifier(isolated_env, SENTINEL, SINCE, old_log)
 
     assert code == 0, stderr
-    assert 'same personality: "pragmatic" (source: turn_context)' in stdout
+    assert "ignored obsolete legacy key: personality (old present, new present)" in stdout
+
+
+def test_identifier_ignores_personality_present_only_in_new_profile(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """A new-only obsolete personality key is reported but does not stop."""
+    old_records = valid_records(thread_id="thread-old", cwd=isolated_env.repo, sentinel="old sentinel")
+    old_context = cast("dict[str, object]", old_records[1]["payload"])
+    old_context.pop("personality")
+    old_log = tmp_path / "old-rollout.jsonl"
+    write_records(old_log, old_records)
+    write_records(
+        candidate_path(isolated_env),
+        valid_records(thread_id="thread-new", cwd=isolated_env.repo),
+    )
+
+    code, stdout, stderr = run_identifier(isolated_env, SENTINEL, SINCE, old_log)
+
+    assert code == 0, stderr
+    assert "ignored obsolete legacy key: personality (old absent, new present)" in stdout
+
+
+def test_identifier_refuses_exec_sourced_candidate(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """An exec-sourced thread is not a visible-chat candidate."""
+    old_log = make_old_log(tmp_path, isolated_env.repo)
+    records = valid_records(thread_id="thread-exec", cwd=isolated_env.repo)
+    metadata = cast("dict[str, object]", records[0]["payload"])
+    metadata["source"] = "exec"
+    write_records(candidate_path(isolated_env), records)
+
+    code, stdout, _stderr = run_identifier(isolated_env, SENTINEL, SINCE, old_log)
+
+    assert code == 1
+    assert "candidates: 0; unreadable look-alikes: 0" in stdout
 
 
 @pytest.mark.parametrize("write", [False, True], ids=["dry-run", "write"])

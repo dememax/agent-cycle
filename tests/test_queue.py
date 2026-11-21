@@ -42,8 +42,8 @@ STOPPING_KEYS = (
     "model",
     "effort",
     "collaboration_mode",
-    "personality",
 )
+LEGACY_PROFILE_KEY = "personality"
 TURN_FILES = ("thread-log-path", "thread-log-lines-before", "started", "stdout.txt", "stderr.txt", "turn-id")
 
 
@@ -448,22 +448,64 @@ def test_prompt_rewritten_after_submission_still_matches_original(
 
 
 def test_queue_accepts_0164_effective_profile(isolated_env: IsolatedEnvironment, tmp_path: Path) -> None:
-    """The latest settings event completes a reduced latest context."""
+    """A legacy baseline queues against an old profile completed from settings."""
     case = make_case(isolated_env, tmp_path)
     use_0164_profile(case, isolated_env.repo)
 
-    returncode, _stdout, stderr = run_queue(isolated_env, case, "turn")
+    returncode, stdout, stderr = run_queue(isolated_env, case, "turn")
 
     assert returncode == 0, stderr
+    assert stdout.count("ignored obsolete legacy profile key: personality") == 1
     assert not (case.state / "pending.json").exists()
 
 
-def test_queue_refuses_0164_settings_drift(isolated_env: IsolatedEnvironment, tmp_path: Path) -> None:
-    """A changed fallback personality is behavioural profile drift."""
+def test_queue_ignores_legacy_personality_value_drift(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """A changed obsolete personality value does not stop queueing."""
     case = make_case(isolated_env, tmp_path)
     use_0164_profile(case, isolated_env.repo, personality="different")
 
-    assert_pre_submission_refusal(case, run_queue(isolated_env, case), "profile drift on: personality")
+    returncode, stdout, stderr = run_queue(isolated_env, case, "turn")
+
+    assert returncode == 0, stderr
+    assert stdout.count("ignored obsolete legacy profile key: personality") == 1
+
+
+def test_queue_accepts_legacy_baseline_against_profile_without_personality(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """A twelve-key legacy baseline is normalized against a new profile."""
+    case = make_case(isolated_env, tmp_path)
+    context = cast("dict[str, object]", case.records[1]["payload"])
+    context.pop(LEGACY_PROFILE_KEY)
+    case.write_log()
+
+    returncode, stdout, stderr = run_queue(isolated_env, case, "turn")
+
+    assert returncode == 0, stderr
+    assert stdout.count("ignored obsolete legacy profile key: personality") == 1
+
+
+def test_queue_accepts_current_baseline_against_profile_without_personality(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """An eleven-key baseline queues against a new profile."""
+    case = make_case(isolated_env, tmp_path)
+    context = cast("dict[str, object]", case.records[1]["payload"])
+    baseline = cast("dict[str, object]", case.active["profile_baseline"])
+    context.pop(LEGACY_PROFILE_KEY)
+    baseline.pop(LEGACY_PROFILE_KEY)
+    case.write_log()
+    case.write_active()
+
+    returncode, stdout, stderr = run_queue(isolated_env, case, "turn")
+
+    assert returncode == 0, stderr
+    assert "ignored obsolete legacy profile key" not in stdout
 
 
 def test_queue_refuses_0164_without_settings(isolated_env: IsolatedEnvironment, tmp_path: Path) -> None:
@@ -475,30 +517,54 @@ def test_queue_refuses_0164_without_settings(isolated_env: IsolatedEnvironment, 
     assert_pre_submission_refusal(
         case,
         run_queue(isolated_env, case),
-        "unknown stopping keys: workspace_roots, personality",
+        "unknown stopping keys: workspace_roots",
     )
 
 
-def test_queue_refuses_missing_or_null_stopping_baseline(
+@pytest.mark.parametrize("stopping_key", STOPPING_KEYS)
+@pytest.mark.parametrize("value", ["missing", None], ids=["missing", "null"])
+def test_queue_refuses_missing_or_null_current_stopping_baseline(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    stopping_key: str,
+    value: str | None,
+) -> None:
+    """Every current baseline key is required and non-null."""
+    case = make_case(isolated_env, tmp_path)
+    baseline = cast("dict[str, object]", case.active["profile_baseline"])
+    if value == "missing":
+        baseline.pop(stopping_key)
+    else:
+        baseline[stopping_key] = None
+    case.write_active()
+
+    assert_pre_submission_refusal(case, run_queue(isolated_env, case), "malformed profile_baseline")
+
+
+def test_queue_refuses_null_legacy_profile_key(
     isolated_env: IsolatedEnvironment,
     tmp_path: Path,
 ) -> None:
-    """Absent and null baseline entries are malformed, even when the log also lacks them."""
-    for value in ("missing", None):
-        case_root = tmp_path / f"case-{value}"
-        case_root.mkdir()
-        case = make_case(isolated_env, case_root)
-        case.records[1] = turn_context_0164(cwd=isolated_env.repo)
-        baseline = cast("dict[str, object]", case.active["profile_baseline"])
-        if value == "missing":
-            baseline.pop("personality")
-        else:
-            baseline["personality"] = None
-        baseline.pop("workspace_roots")
-        case.write_log()
-        case.write_active()
+    """The optional legacy baseline key remains non-null when present."""
+    case = make_case(isolated_env, tmp_path)
+    baseline = cast("dict[str, object]", case.active["profile_baseline"])
+    baseline[LEGACY_PROFILE_KEY] = None
+    case.write_active()
 
-        assert_pre_submission_refusal(case, run_queue(isolated_env, case), "malformed profile_baseline")
+    assert_pre_submission_refusal(case, run_queue(isolated_env, case), "malformed profile_baseline")
+
+
+def test_queue_refuses_nonlegacy_extra_baseline_key(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """A baseline key outside the current and legacy sets is malformed."""
+    case = make_case(isolated_env, tmp_path)
+    baseline = cast("dict[str, object]", case.active["profile_baseline"])
+    baseline["generated_extra"] = "value"
+    case.write_active()
+
+    assert_pre_submission_refusal(case, run_queue(isolated_env, case), "malformed profile_baseline")
 
 
 def test_queue_accepts_matching_cli_version(isolated_env: IsolatedEnvironment, tmp_path: Path) -> None:
@@ -566,6 +632,7 @@ def test_reanchor_cli_updates_record_and_history(isolated_env: IsolatedEnvironme
     assert active["cli_version"] == "0.164.0-alpha.11.1"
     assert active["cli_version_history"][0]["cli_version"] == CLI_VERSION
     assert active["cli_version_history"][0]["reanchored_at"]
+    assert stdout.count("ignored obsolete legacy profile key: personality") == 1
     assert f"old CLI version: {CLI_VERSION}" in stdout
     assert "new CLI version: 0.164.0-alpha.11.1" in stdout
     assert not (case.state / "pending.json").exists()
