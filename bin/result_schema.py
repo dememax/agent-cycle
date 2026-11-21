@@ -202,7 +202,7 @@ def validate(instance: object, schema: dict[str, object], path: str = "") -> lis
                     )
         if schema.get("additionalProperties") is False:
             allowed = properties.keys() if isinstance(properties, dict) else set()
-            for name in instance.keys() - allowed:
+            for name in sorted(instance.keys() - allowed):
                 errors.append(f"{_property_path(path, str(name))}: additional property is not allowed")
 
     items = schema.get("items")
