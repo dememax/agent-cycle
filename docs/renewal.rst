@@ -54,8 +54,9 @@ the public-content gate from an approved revision as the README describes, but
 keep its deny-list outside this public repository.
 
 The person chooses which agent drives and which implements. They also choose
-the model, reasoning effort and personality for each project and record those
-values in the bootstrap record. They are not repository-wide defaults. In the
+the model, reasoning effort and other supported chat settings for each project
+and record those values in the bootstrap record. They are not repository-wide
+defaults. In the
 implementer's visible-chat panel, select ``Approve for me``: commits require
 approval because ``.git`` is read-only inside the workspace, while the prompt,
 audit and snapshots provide the scope checks. Automatic approval itself is
@@ -187,13 +188,15 @@ A new implementer chat
    project's working directory, was created after ``SINCE``, and whose
    first message is the sentinel, in a completed turn. Exactly one
    candidate and no unreadable look-alike are required.
-3. It compares the settings with the old chat's on the twelve stopping
+3. It compares the settings with the old chat's on the eleven stopping
    keys. The new chat's effective profile uses its initial ``turn_context``
    and only a ``thread_settings_applied`` event inside that initial turn. The
    old chat uses its latest context and latest settings event. Context values
    take precedence, and every stopping key must be known. The identifier
    prints each new value's source; any difference or unknown stops, and the
    driver says which setting to change.
+   One upstream setting no longer exists. The identifier ignores that legacy
+   key, reports its presence in either chat and omits it from new baselines.
    A project's first chat is compared with another project's chat, after
    moving that chat's repository paths to the new repository.
 4. It reports both chats' ``session_meta`` CLI versions. Equal versions need

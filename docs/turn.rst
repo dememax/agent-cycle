@@ -144,9 +144,9 @@ takes an exclusive lock and refuses unless:
   directory, creation time) equals the record's;
 - the chat's first message is the recorded sentinel, in a completed turn;
 - no turn is running, and no earlier submission is pending;
-- the latest effective profile equals the recorded profile on the twelve
+- the latest effective profile equals the recorded profile on the eleven
   stopping keys (working directory, approvals, sandbox, permissions, model,
-  effort, collaboration mode, personality and the rest);
+  effort, collaboration mode and the rest);
 - the executable's CLI version equals the active record's anchor;
 - ``prompt.md`` starts with the driver header.
 
@@ -158,6 +158,9 @@ names are unchanged. For the queue, the latest context uses the latest
 settings event anywhere in the log. A value found in neither source is
 unknown and always refuses; two unknowns never compare equal. A stored
 baseline with a missing or null stopping key is malformed and also refuses.
+One upstream setting no longer exists. A baseline written before its removal
+may carry that one legacy key; queueing normalizes it on read and reports that
+it was ignored. Any other extra key, or a null legacy value, is malformed.
 
 It reads ``prompt.md`` once, under the lock, and uses that text for
 validation, submission and comparison. It writes ``pending.json`` durably,

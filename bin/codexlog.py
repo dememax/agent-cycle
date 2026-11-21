@@ -197,8 +197,8 @@ STOPPING_KEYS = (
     "model",
     "effort",
     "collaboration_mode",
-    "personality",
 )
+LEGACY_PROFILE_KEYS = ("personality",)
 DIAGNOSTIC_KEYS = ("timezone", "multi_agent_version", "disabled_plugin_ids")
 THREAD_SETTINGS_KEYS = {"workspace_roots": "runtime_workspace_roots", "effort": "reasoning_effort"}
 
@@ -391,11 +391,58 @@ def initial_effective_profile(recs: list[dict[str, Any]]) -> tuple[dict[str, Any
     return _effective_profile(contexts[0], settings)
 
 
+def _legacy_profile_keys(context: dict[str, Any], settings: dict[str, Any] | None) -> set[str]:
+    """Return obsolete profile keys supplied by a context or its fallback settings."""
+    present = set()
+    for key in LEGACY_PROFILE_KEYS:
+        settings_key = THREAD_SETTINGS_KEYS.get(key, key)
+        if context.get(key) is not None or (settings is not None and settings.get(settings_key) is not None):
+            present.add(key)
+    return present
+
+
+def latest_legacy_profile_keys(recs: list[dict[str, Any]]) -> set[str]:
+    """Obsolete keys supplied to the latest context by the latest settings event."""
+    contexts = turn_contexts(recs)
+    if not contexts:
+        raise LogError("missing turn_context")
+    settings = None
+    for index, record in enumerate(recs):
+        candidate = _thread_settings(record, index)
+        if candidate is not None:
+            settings = candidate
+    return _legacy_profile_keys(contexts[-1], settings)
+
+
+def initial_legacy_profile_keys(recs: list[dict[str, Any]]) -> set[str]:
+    """Obsolete keys supplied to the first context inside its initial turn."""
+    contexts = turn_contexts(recs)
+    if not contexts:
+        raise LogError("missing turn_context")
+    turn, _text = initial_composer(recs)
+    state = turn_states(recs)[turn]
+    start, complete = state["started"], state["complete"]
+    if start is None or complete is None:
+        raise LogError("the initial composer turn is not complete")
+    settings = None
+    for index in range(start + 1, complete):
+        candidate = _thread_settings(recs[index], index)
+        if candidate is not None:
+            settings = candidate
+    return _legacy_profile_keys(contexts[0], settings)
+
+
 def profile_baseline(value: object) -> dict[str, Any]:
-    """Validate the complete non-null stopping profile stored in an active record."""
+    """Validate and normalize a current or legacy active-record profile."""
     if not isinstance(value, dict):
         raise LogError("malformed profile_baseline: expected an object")
     invalid = [key for key in STOPPING_KEYS if key not in value or value[key] is None]
     if invalid:
         raise LogError("malformed profile_baseline: missing or null stopping keys: " + ", ".join(invalid))
-    return value
+    null_legacy = [key for key in LEGACY_PROFILE_KEYS if key in value and value[key] is None]
+    if null_legacy:
+        raise LogError("malformed profile_baseline: null legacy profile keys: " + ", ".join(null_legacy))
+    extra = sorted(value.keys() - set(STOPPING_KEYS) - set(LEGACY_PROFILE_KEYS))
+    if extra:
+        raise LogError("malformed profile_baseline: unexpected keys: " + ", ".join(extra))
+    return {key: value[key] for key in STOPPING_KEYS}

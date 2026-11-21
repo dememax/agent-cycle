@@ -29,8 +29,8 @@ visibly started the new turn, so two drivers cannot both queue. Refuses
 - no earlier submission is pending (pending.json from a queue whose turn
   never started);
 - the latest turn_context equals the recorded profile_baseline on every
-  stopping key. A setting changed in the panel after the last turn cannot
-  be seen until a turn records it; the post-turn audit rechecks it;
+  current stopping key. A setting changed in the panel after the last turn
+  cannot be seen until a turn records it; the post-turn audit rechecks it;
 - TURN_DIR/prompt.md starts with "[S0 DRIVER: Claude Code]".
 
 Before submitting it writes pending.json atomically and fsyncs it and its
@@ -159,7 +159,15 @@ def check(
             return None, f"turn running: {running}"
         if not codexlog.turn_contexts(recs):
             return None, "no turn_context"
-        baseline = codexlog.profile_baseline(active.get("profile_baseline"))
+        baseline_value = active.get("profile_baseline")
+        baseline = codexlog.profile_baseline(baseline_value)
+        legacy_baseline = (
+            [key for key in codexlog.LEGACY_PROFILE_KEYS if key in baseline_value]
+            if isinstance(baseline_value, dict)
+            else []
+        )
+        for key in legacy_baseline:
+            print(f"ignored obsolete legacy profile key: {key}")
         latest, _sources = codexlog.latest_effective_profile(recs)
         drift = [k for k in codexlog.STOPPING_KEYS if latest[k] != baseline[k]]
         if drift:

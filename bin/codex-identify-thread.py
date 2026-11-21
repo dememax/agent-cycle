@@ -157,6 +157,8 @@ def main() -> int:
     try:
         new, new_sources = codexlog.initial_effective_profile(recs)
         old, _old_sources = codexlog.latest_effective_profile(old_recs)
+        new_legacy = codexlog.initial_legacy_profile_keys(recs)
+        old_legacy = codexlog.latest_legacy_profile_keys(old_recs)
     except codexlog.LogError as error:
         print(f"FAIL: {error}")
         return 1
@@ -173,6 +175,11 @@ def main() -> int:
             f"  {'DIFF' if key in stopping else 'same'} {key}: {json.dumps(new[key])[:160]} "
             f"(source: {new_sources[key]})"
         )
+    for key in codexlog.LEGACY_PROFILE_KEYS:
+        if key in old_legacy or key in new_legacy:
+            old_presence = "present" if key in old_legacy else "absent"
+            new_presence = "present" if key in new_legacy else "absent"
+            print(f"  ignored obsolete legacy key: {key} (old {old_presence}, new {new_presence})")
     new_context, old_context = new_contexts[0], old_contexts[-1]
     for key in codexlog.DIAGNOSTIC_KEYS:
         print(

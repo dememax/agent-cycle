@@ -75,7 +75,8 @@ def make_case(isolated_env: IsolatedEnvironment, tmp_path: Path, *, state: Path 
     selected_state.mkdir(parents=True, exist_ok=True)
     log = tmp_path / f"rollout-{selected_state.name}.jsonl"
     context = turn_context(cwd=isolated_env.repo)
-    baseline = dict(cast("dict[str, object]", context["payload"]))
+    context_payload = cast("dict[str, object]", context["payload"])
+    baseline = {key: context_payload[key] for key in (*STOPPING_KEYS, LEGACY_PROFILE_KEY)}
     records = [
         session_meta(thread_id="thread-generated", cwd=isolated_env.repo),
         context,
