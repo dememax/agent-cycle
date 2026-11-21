@@ -7,6 +7,8 @@
 Usage: audit-turn.py THREAD_LOG START_LINE SCHEMA OUT_DIR
 
 Reads the rollout log from START_LINE, and:
+- reports every top-level ``compacted`` record through this turn's own
+  ``task_complete``;
 - lists every escalated command (sandbox_permissions: require_escalated) and
   flags any that is not `git add` / `git commit` inside the selected
   profile's repository;
@@ -527,6 +529,10 @@ try:
     for index, e in enumerate(codexlog.iter_records(Path(log))):
         if index < start:
             continue
+        if e.get("type") == "compacted":
+            timestamp = e.get("timestamp", "")
+            clock = timestamp[11:19] if isinstance(timestamp, str) else ""
+            print(f"COMPACTION at line {index + 1} ({display_command(clock)})")
         payload = e.get("payload")
         p = payload if isinstance(payload, dict) else {}
         if e.get("type") == "turn_context":

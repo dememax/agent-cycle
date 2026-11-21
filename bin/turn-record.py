@@ -21,6 +21,7 @@ SNAPSHOT_LINE = re.compile(
     r"codex_refs=(?P<codex_refs>[0-9]+) status=(?P<status>[0-9a-f]{16})$"
 )
 ESCALATION_LINE = re.compile(r"^(?:[0-9]{2}:[0-9]{2}:[0-9]{2}|) ESCALATION (?P<result>ok |BAD) \[.*\] .*$")
+COMPACTION_LINE = re.compile(r"^COMPACTION at line (?P<line>[1-9][0-9]*) \((?P<time>[0-9]{2}:[0-9]{2}:[0-9]{2}|)\)$")
 SNAPSHOT_FIELDS = ("head", "refs", "codex_refs", "status")
 
 
@@ -42,6 +43,7 @@ class Audit:
     turn_error: str | None
     log_error: str | None
     exit_status: int | None
+    compactions: tuple[str, ...]
 
 
 def read_required(turn: Path, name: str) -> str:
@@ -83,15 +85,21 @@ def parse_audit(path: Path, content: str) -> Audit:
     index = 0
     ok = 0
     bad = 0
+    compactions = []
     while index < len(lines):
         match = ESCALATION_LINE.fullmatch(lines[index])
-        if match is None:
-            break
-        if match.group("result") == "ok ":
-            ok += 1
-        else:
-            bad += 1
-        index += 1
+        if match is not None:
+            if match.group("result") == "ok ":
+                ok += 1
+            else:
+                bad += 1
+            index += 1
+            continue
+        if COMPACTION_LINE.fullmatch(lines[index]) is not None:
+            compactions.append(lines[index])
+            index += 1
+            continue
+        break
 
     if index < len(lines) and lines[index].startswith("LOG ERROR: ") and lines[index] != "LOG ERROR: ":
         log_error = lines[index]
@@ -101,7 +109,7 @@ def parse_audit(path: Path, content: str) -> Audit:
         match = re.fullmatch(r"audit exit ([0-9]+)", lines[index])
         if match is None or index + 1 != len(lines):
             raise InputError(path, "cannot parse")
-        return Audit(ok, bad, "unavailable", None, log_error, int(match.group(1)))
+        return Audit(ok, bad, "unavailable", None, log_error, int(match.group(1)), tuple(compactions))
 
     if index >= len(lines) or not lines[index].startswith("approvals_reviewer:"):
         raise InputError(path, "cannot parse")
@@ -126,7 +134,7 @@ def parse_audit(path: Path, content: str) -> Audit:
         index += 1
     if index != len(lines):
         raise InputError(path, "cannot parse")
-    return Audit(ok, bad, result, turn_error, None, exit_status)
+    return Audit(ok, bad, result, turn_error, None, exit_status, tuple(compactions))
 
 
 def parse_snapshot(path: Path, content: str) -> dict[str, dict[str, str]]:
@@ -284,6 +292,7 @@ def main(arguments: list[str]) -> int:
             audit_facts += f"; {audit.log_error}"
         audit_facts += "; exit status not recorded" if audit.exit_status is None else f"; exit {audit.exit_status}"
         bullets.append(audit_facts)
+        bullets.extend(f"- {line}" for line in audit.compactions)
         bullets.extend(snapshot_bullets(before, after))
         bullets.append("- result.json: absent" if result is None else parse_result(turn / "result.json", result))
         bullets.extend(["- usage-row.txt: absent"] if usage is None else parse_usage(turn / "usage-row.txt", usage))

@@ -192,8 +192,11 @@ After the turn
 1. Wait until the log shows the turn's ``task_complete``. Watch for
    the usage limits while waiting.
 2. Audit: ``bin/audit-turn.py THREAD_LOG START_LINE SCHEMA TURN_DIR``.
-   Its exit status is a set of bits: 1 for an escalation outside the
-   allowlist, or one it cannot parse unambiguously within its scope
+   For every top-level ``compacted`` record after ``START_LINE`` and through
+   this turn's ``task_complete``, it prints ``COMPACTION at line N
+   (HH:MM:SS)``. A compaction does not change the exit status. The status is a
+   set of bits: 1 for an escalation outside the allowlist, or one it cannot
+   parse unambiguously within its scope
    (:doc:`design`, Guards); 2 for a final message that is not exactly one
    strict JSON object, whose object fails recursive schema validation, or
    whose schema uses an unsupported keyword (:doc:`design`, Contracts); 4
@@ -208,8 +211,10 @@ After the turn
    Save its standard output in ``audit.txt``, then append ``audit exit N``
    with the command's exit status; the record generator never infers it. The
    record generator accepts the normal audit grammar or the early log-error
-   grammar (established escalation lines, one ``LOG ERROR: DETAIL`` line and
-   the saved exit), and preserves the error and status in the factual record.
+   grammar (established escalation and compaction lines, one ``LOG ERROR:
+   DETAIL`` line and the saved exit), and preserves the compactions, error and
+   status in the factual record. A malformed compaction line is a parse
+   failure.
    Displayed commands, working directories and turn errors escape control and
    Unicode line separators, so each fact occupies one output line. Commands
    are tokenized as shell syntax; other operators, redirections and expansions
