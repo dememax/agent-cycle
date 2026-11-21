@@ -193,6 +193,59 @@ def test_log_error_audit_is_recorded(
     ) in result.stdout.decode()
 
 
+@pytest.mark.parametrize(
+    ("suffix", "expected_result"),
+    [
+        (
+            "approvals_reviewer: auto_review\nresult: valid\naudit exit 0\n",
+            "result valid; exit 0",
+        ),
+        (
+            "LOG ERROR: generated malformed rollout line\naudit exit 8\n",
+            "result unavailable; LOG ERROR: generated malformed rollout line; exit 8",
+        ),
+    ],
+    ids=["normal", "log-error"],
+)
+def test_compactions_are_preserved_in_factual_record(
+    tmp_path: Path,
+    suffix: str,
+    expected_result: str,
+) -> None:
+    """Normal and log-error audits retain every well-formed compaction line."""
+    turn = create_turn(
+        tmp_path,
+        audit=(
+            "COMPACTION at line 2 (03:04:05)\n"
+            "12:00:00 ESCALATION ok  [/generated/project] git add generated\n"
+            "COMPACTION at line 4 (03:05:06)\n"
+            f"{suffix}"
+        ),
+    )
+
+    result = run_record(turn)
+
+    assert result.returncode == 0, result.stderr
+    output = result.stdout.decode()
+    assert f"- Audit: 1 escalation (1 ok, 0 BAD); {expected_result}\n" in output
+    assert "- COMPACTION at line 2 (03:04:05)\n" in output
+    assert "- COMPACTION at line 4 (03:05:06)\n" in output
+
+
+def test_malformed_compaction_line_fails_closed(tmp_path: Path) -> None:
+    """A near-match cannot enter the factual record as a compaction fact."""
+    turn = create_turn(
+        tmp_path,
+        audit="COMPACTION line 2 (03:04:05)\napprovals_reviewer: auto_review\nresult: valid\n",
+    )
+
+    result = run_record(turn)
+
+    assert result.returncode == 2
+    assert result.stdout == b""
+    assert result.stderr == f"turn-record: {turn / 'audit.txt'}: cannot parse\n".encode()
+
+
 def test_audit_requires_lf_separators(tmp_path: Path) -> None:
     """CRLF cannot masquerade as the audit transcript's LF grammar."""
     turn = create_turn(

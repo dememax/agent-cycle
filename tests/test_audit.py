@@ -903,6 +903,48 @@ def test_extracts_last_message_honors_start_line_and_prints_reviewer(
     assert json.loads((output / "result.json").read_text(encoding="utf-8")) == {"status": "ok"}
 
 
+def test_compactions_are_reported_within_selected_turn(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """Only compacted records inside the selected completed turn are reported."""
+    records = [
+        record("compacted", {"generated": "before"}),
+        record("compacted", {"generated": "first"}),
+        assistant_message(VALID_RESULT),
+        record("compacted", {"generated": "second"}),
+        task_complete("turn-audit"),
+        record("compacted", {"generated": "after"}),
+    ]
+
+    code, stdout, stderr, _output = run_audit(isolated_env, tmp_path, records, start=1)
+
+    assert code == 0, stderr
+    assert [line for line in stdout.splitlines() if line.startswith("COMPACTION")] == [
+        "COMPACTION at line 2 (03:04:05)",
+        "COMPACTION at line 4 (03:04:05)",
+    ]
+
+
+def test_compaction_is_preserved_before_later_log_error(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """A later malformed record does not erase an established compaction fact."""
+    compacted = json.dumps(record("compacted", {"generated": "before-error"}))
+
+    code, stdout, stderr, _output = run_audit(
+        isolated_env,
+        tmp_path,
+        [],
+        log_text=f"{compacted}\n{{not JSON}}\n",
+    )
+
+    assert code == 8
+    assert stdout.startswith("COMPACTION at line 1 (03:04:05)\nLOG ERROR: ")
+    assert "Traceback" not in stderr
+
+
 @pytest.mark.parametrize(
     "separator",
     [
