@@ -163,6 +163,62 @@ def test_invalid_result_bad_escalation_and_turn_error(tmp_path: Path) -> None:
     assert "- result.json: absent\n" in result.stdout.decode()
 
 
+@pytest.mark.parametrize(
+    ("escalation", "expected_count"),
+    [
+        ("", "0 escalations (0 ok, 0 BAD)"),
+        (
+            "12:00:00 ESCALATION BAD [/generated/project] git push generated\n",
+            "1 escalation (0 ok, 1 BAD)",
+        ),
+    ],
+    ids=["without-escalation", "after-escalation"],
+)
+def test_log_error_audit_is_recorded(
+    tmp_path: Path,
+    escalation: str,
+    expected_count: str,
+) -> None:
+    """A strict-log failure remains visible in the factual record."""
+    turn = create_turn(
+        tmp_path,
+        audit=escalation + "LOG ERROR: generated malformed rollout line\naudit exit 9\n",
+    )
+
+    result = run_record(turn)
+
+    assert result.returncode == 0, result.stderr
+    assert (
+        f"- Audit: {expected_count}; result unavailable; "
+        "LOG ERROR: generated malformed rollout line; exit 9\n"
+    ) in result.stdout.decode()
+
+
+def test_audit_requires_lf_separators(tmp_path: Path) -> None:
+    """CRLF cannot masquerade as the audit transcript's LF grammar."""
+    turn = create_turn(
+        tmp_path,
+        audit="approvals_reviewer: auto_review\r\nresult: valid\r\naudit exit 0\r\n",
+    )
+
+    result = run_record(turn)
+
+    assert result.returncode == 2
+    assert result.stdout == b""
+    assert result.stderr == f"turn-record: {turn / 'audit.txt'}: cannot parse\n".encode()
+
+
+def test_log_error_audit_requires_saved_exit(tmp_path: Path) -> None:
+    """A log error without the driver's saved audit status is malformed."""
+    turn = create_turn(tmp_path, audit="LOG ERROR: generated malformed rollout line\n")
+
+    result = run_record(turn)
+
+    assert result.returncode == 2
+    assert result.stdout == b""
+    assert result.stderr == f"turn-record: {turn / 'audit.txt'}: cannot parse\n".encode()
+
+
 def test_snapshot_reports_only_changed_repositories_and_fields(tmp_path: Path) -> None:
     before = snapshot_line("/generated/project") + snapshot_line("/generated/other")
     after = snapshot_line("/generated/project", head=HEAD_B) + snapshot_line(
