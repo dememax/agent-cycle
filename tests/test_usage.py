@@ -389,11 +389,99 @@ def test_unreadable_usage_inputs_are_usage_errors(
 
     result = isolated_env.run([PYTHON, "-I", USAGE, transcript, turn])
 
-    assert result.returncode == 2
-    assert result.stdout == ""
-    assert str(broken) in result.stderr
+    if broken_input == "missing-transcript":
+        assert result.returncode == 2
+        assert result.stdout == ""
+        assert str(broken) in result.stderr
+    else:
+        assert result.returncode == 3
+        assert result.stdout.startswith("LOG ERROR: ")
+        assert result.stdout.count("\n") == 1
+        assert str(broken) in result.stdout
+        assert result.stderr == ""
     assert "Traceback" not in result.stderr
     assert not (turn / "usage.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("invalid_record", "message"),
+    [
+        (b"\n", "malformed JSON"),
+        (b"{not JSON}\n", "malformed JSON"),
+        (b"[]\n", "not an object"),
+        (b'{"type":"response_item"}', "incomplete last line"),
+        (b"\xff\n", "invalid UTF-8"),
+    ],
+    ids=["blank", "malformed", "non-object", "unfinished", "invalid-utf8"],
+)
+def test_rollout_log_errors_are_explicit_and_write_no_usage(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    invalid_record: bytes,
+    message: str,
+) -> None:
+    """A consumed invalid rollout record is one explicit log error."""
+    log = tmp_path / "rollout-generated.jsonl"
+    before = token_count(
+        total={"input_tokens": 100, "cached_input_tokens": 20, "output_tokens": 10},
+        last={"input_tokens": 50},
+        primary_used=1,
+        secondary_used=2,
+    )
+    prefix = f"{json.dumps(before)}\n".encode()
+    suffix = b"" if not invalid_record.endswith(b"\n") else f"{json.dumps(task_complete('turn-generated'))}\n".encode()
+    log.write_bytes(prefix + invalid_record + suffix)
+    turn = tmp_path / "turn-current"
+    make_turn(
+        turn,
+        log,
+        1,
+        started="2040-01-02 10:00:00 +0000",
+        finished="2040-01-02 10:10:00 +0000",
+    )
+    transcript = tmp_path / "claude-generated.jsonl"
+    write_json_lines(transcript, [])
+
+    result = isolated_env.run([PYTHON, "-I", USAGE, transcript, turn])
+
+    assert result.returncode == 3
+    assert result.stdout.startswith("LOG ERROR: ")
+    assert result.stdout.count("\n") == 1
+    assert message in result.stdout
+    assert result.stderr == ""
+    assert not (turn / "usage.json").exists()
+
+
+@pytest.mark.parametrize(
+    "trailing_record",
+    [b"{not JSON}\n", b'{"type":"response_item"}'],
+    ids=["malformed", "unfinished"],
+)
+def test_rollout_error_after_task_complete_is_ignored(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    trailing_record: bytes,
+) -> None:
+    """The strict reader does not consume a later turn's bad record (non-RED guard)."""
+    log = tmp_path / "rollout-generated.jsonl"
+    start_line = make_codex_log(log)
+    with log.open("ab") as stream:
+        stream.write(trailing_record)
+    turn = tmp_path / "turn-current"
+    make_turn(
+        turn,
+        log,
+        start_line,
+        started="2040-01-02 10:00:00 +0000",
+        finished="2040-01-02 10:10:00 +0000",
+    )
+    transcript = tmp_path / "claude-generated.jsonl"
+    write_json_lines(transcript, [])
+
+    result = isolated_env.run([PYTHON, "-I", USAGE, transcript, turn])
+
+    assert result.returncode == 0, result.stderr
+    assert (turn / "usage.json").exists()
 
 
 def test_renewal_compaction_buckets_and_third_compaction_trigger(
