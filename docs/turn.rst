@@ -230,7 +230,9 @@ After the turn
    ``started`` time. The rollout is read strictly only through this turn's
    ``task_complete``. A consumed blank, malformed, non-object or unfinished
    record, invalid UTF-8 or unreadable log prints one ``LOG ERROR: DETAIL``
-   line, exits 3 and writes no ``usage.json`` (:doc:`tokens`).
+   line, exits 3 and writes no ``usage.json``. The table labels the 5-hour and
+   weekly percentages as account-wide; its token and median columns are this
+   turn's own measurements (:doc:`tokens`).
 7. Start the turn record with ``bin/turn-record.py TURN_DIR`` after all the
    evidence above exists, then add the review's judgement, findings and
    verdict to its factual Markdown skeleton.

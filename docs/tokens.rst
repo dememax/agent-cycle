@@ -54,9 +54,11 @@ later record belongs to another turn and is not consumed. The Claude transcript
 reader remains best-effort.
 
 The implementer
-   The 5-hour and weekly ``used_percent`` before and after the turn (a
-   drop means the window reset), the turn's input, cached and output
-   tokens, and its median context per call, all from the chat's log.
+   The account-wide 5-hour and weekly ``used_percent`` before and after the
+   turn (a drop means the window reset), followed by the turn's input, cached
+   and output tokens and its median context per call, all from the chat's log.
+   Other activity can move the account-wide percentages, so their difference
+   is not this turn's own cost; the token and median columns are.
 
 The driver
    The tokens of its own messages over the cycle, from the end of the

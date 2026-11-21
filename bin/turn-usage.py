@@ -10,8 +10,8 @@ For the turn directory (with thread-log-path, thread-log-lines-before,
 started, finished and turn-id), write usage.json and print one table row
 followed by one renewal-facts line.  A previous turn is read-only input.
 
-Codex: the 5-hour (primary) and weekly (secondary) used_percent of the
-"codex" limit before the turn and at its end, and the token totals the
+Codex: the account-wide 5-hour (primary) and weekly (secondary) used_percent
+of the "codex" limit before the turn and at its end, and the token totals the
 turn consumed, from the thread's rollout log.
 
 Claude Code: the tokens of the driver's own messages in the turn's cycle,
@@ -420,7 +420,9 @@ def main() -> int:
     a = cast("int | float | None", codex["five_hour_after"])
     reset = " (window reset)" if b is not None and a is not None and a < b else ""
     print(
-        "| turn | Codex 5h % | Codex week % | Codex tokens in / cached / out | Codex median context/call | Claude tokens in+cache-write / cache-read / out (msgs) | Claude median context/msg |"
+        "| turn | Codex 5h % (account-wide) | Codex week % (account-wide) | "
+        "Codex tokens in / cached / out | Codex median context/call | "
+        "Claude tokens in+cache-write / cache-read / out (msgs) | Claude median context/msg |"
     )
     print("|---|---|---|---|---|---|---|")
     print(
