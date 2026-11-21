@@ -31,6 +31,9 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import codexlog
+
 
 def local_time(path: Path) -> datetime | None:
     try:
@@ -39,40 +42,38 @@ def local_time(path: Path) -> datetime | None:
         return None
 
 
-def codex_usage(log: Path, start_line: int) -> dict[str, object]:
-    before = None
-    end = None
-    tokens_before = None
-    tokens_end = None
+def codex_usage(records: list[tuple[int, dict[str, object]]], start_line: int) -> dict[str, object]:
+    before: dict[str, Any] | None = None
+    end: dict[str, Any] | None = None
+    tokens_before: dict[str, Any] | None = None
+    tokens_end: dict[str, Any] | None = None
     per_call: list[int] = []
-    with log.open(encoding="utf-8") as stream:
-        for number, line in enumerate(stream, 1):
-            try:
-                record = json.loads(line)
-            except ValueError:
-                continue
-            payload = record.get("payload") or {}
-            if number > start_line and payload.get("type") == "task_complete":
-                break
-            if payload.get("type") != "token_count":
-                continue
-            info = payload.get("info") or {}
-            total = info.get("total_token_usage")
-            limits = payload.get("rate_limits") or {}
-            usable = limits.get("limit_id") == "codex" and limits.get("primary")
-            if number <= start_line:
-                if total:
-                    tokens_before = total
-                if usable:
-                    before = limits
-            else:
-                if total:
-                    tokens_end = total
-                last = info.get("last_token_usage") or {}
-                if last.get("input_tokens"):
-                    per_call.append(int(last["input_tokens"]))
-                if usable:
-                    end = limits
+    for number, record in records:
+        item = payload(record)
+        if number > start_line and item.get("type") == "task_complete":
+            break
+        if item.get("type") != "token_count":
+            continue
+        info_value = item.get("info")
+        info = cast("dict[str, Any]", info_value) if isinstance(info_value, dict) else {}
+        total_value = info.get("total_token_usage")
+        total = cast("dict[str, Any]", total_value) if isinstance(total_value, dict) else None
+        limits_value = item.get("rate_limits")
+        limits = cast("dict[str, Any]", limits_value) if isinstance(limits_value, dict) else {}
+        usable = limits.get("limit_id") == "codex" and limits.get("primary")
+        if number <= start_line:
+            if total:
+                tokens_before = total
+            if usable:
+                before = limits
+        else:
+            if total:
+                tokens_end = total
+            last = info.get("last_token_usage") or {}
+            if last.get("input_tokens"):
+                per_call.append(int(last["input_tokens"]))
+            if usable:
+                end = limits
 
     def pct(limits: dict[str, Any] | None, key: str) -> float | None:
         return None if not limits or not limits.get(key) else limits[key]["used_percent"]
@@ -148,20 +149,13 @@ def fmt(value: object) -> str:
     return "?" if value is None else f"{value:g}" if isinstance(value, float) else str(value)
 
 
-def rollout_records(log: Path) -> list[tuple[int, dict[str, object]]]:
-    """Read usable object records and their physical JSONL line numbers."""
+def rollout_records(log: Path, start_line: int) -> list[tuple[int, dict[str, object]]]:
+    """Read strict records through the selected turn's first completion."""
     records = []
-    try:
-        with log.open(encoding="utf-8") as stream:
-            for number, line in enumerate(stream, 1):
-                try:
-                    record = json.loads(line)
-                except ValueError:
-                    continue
-                if isinstance(record, dict):
-                    records.append((number, record))
-    except OSError:
-        pass
+    for number, record in enumerate(codexlog.iter_records(log), 1):
+        records.append((number, record))
+        if number > start_line and payload(record).get("type") == "task_complete":
+            break
     return records
 
 
@@ -244,11 +238,11 @@ def renewal_facts(
     start: int,
     codex: dict[str, object],
     claude: dict[str, object],
+    records: list[tuple[int, dict[str, object]]],
 ) -> dict[str, object]:
     """Collect renewal evidence, preserving unknowns rather than guessing."""
     notes: list[str] = []
     triggers: list[str] = []
-    records = rollout_records(log)
     current_id = turn_text(turn, "turn-id")
     end = task_end(records, current_id, after=start)
 
@@ -387,9 +381,17 @@ def main() -> int:
     started = local_time(turn / "started")
     finished = local_time(turn / "finished")
     try:
-        codex = codex_usage(log, start)
-    except OSError, UnicodeError:
-        parser.error(f"cannot read rollout log: {log}")
+        records = rollout_records(log, start)
+        codex = codex_usage(records, start)
+    except codexlog.LogError as error:
+        print(f"LOG ERROR: {error}")
+        return 3
+    except OSError as error:
+        print(f"LOG ERROR: {log}: cannot read ({error})")
+        return 3
+    except UnicodeError as error:
+        print(f"LOG ERROR: {log}: invalid UTF-8 ({error})")
+        return 3
     since = previous_end or started
     source = "previous" if previous is not None else "started"
     try:
@@ -400,7 +402,7 @@ def main() -> int:
         )
     except OSError, UnicodeError:
         parser.error(f"cannot read Claude Code transcript: {transcript}")
-    renewal = renewal_facts(turn, previous, log, start, codex, claude)
+    renewal = renewal_facts(turn, previous, log, start, codex, claude, records)
     result = {
         "turn": turn.name,
         "started": started.isoformat() if started else None,

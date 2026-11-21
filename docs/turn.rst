@@ -227,7 +227,10 @@ After the turn
    and prints its table row and renewal facts. ``PREVIOUS_TURN_DIR`` is
    read-only; its end is where the driver's cycle for the current turn
    begins. Without ``--previous``, that window starts at ``TURN_DIR``'s
-   ``started`` time (:doc:`tokens`).
+   ``started`` time. The rollout is read strictly only through this turn's
+   ``task_complete``. A consumed blank, malformed, non-object or unfinished
+   record, invalid UTF-8 or unreadable log prints one ``LOG ERROR: DETAIL``
+   line, exits 3 and writes no ``usage.json`` (:doc:`tokens`).
 7. Start the turn record with ``bin/turn-record.py TURN_DIR`` after all the
    evidence above exists, then add the review's judgement, findings and
    verdict to its factual Markdown skeleton.

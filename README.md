@@ -85,7 +85,7 @@ the authoritative tool versions are in
 | `bin/codex-queue-turn.sh` | Queue one turn into the single active chat under a lock, enforcing its profile and CLI-version anchors; implemented in `codex-queue-turn.py` |
 | `bin/audit-turn.py` | After a turn: list escalated commands, require the final message to be one strict JSON object, and validate it recursively against a result schema |
 | `bin/github-snapshot.sh` | Snapshot the HEAD, refs and status of each repository under `~/github/*/` and `~/github/*/*/`, failing closed on an incomplete Git query |
-| `bin/turn-usage.py` | One turn's usage and renewal facts for both agents; an optional previous turn is read-only (best-effort: malformed lines are skipped) |
+| `bin/turn-usage.py` | One turn's usage and renewal facts for both agents; the rollout is read strictly through that turn's completion, and an optional previous turn is read-only |
 | `bin/read-section.py` | Read one Markdown or reStructuredText section exactly, refusing missing or ambiguous headings and invalid inputs |
 | `bin/turn-record.py` | Generate the factual Markdown skeleton of a turn record from its evidence directory, without guessing missing facts |
 | `bin/state.py` | Print the generated restart summary, or atomically refresh its JSON and Markdown caches in the selected project's state directory |

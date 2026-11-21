@@ -47,7 +47,11 @@ Measuring
 ``bin/turn-usage.py CLAUDE_TRANSCRIPT [--previous PREVIOUS_TURN_DIR]
 TURN_DIR`` writes ``usage.json`` only for ``TURN_DIR``. The optional previous
 turn is read-only. It prints the existing table row followed by one
-``renewal:`` line:
+``renewal:`` line. The rollout reader is strict and stops at the selected
+turn's ``task_complete``. A log error before that boundary prints one
+``LOG ERROR: DETAIL`` line, exits 3 and writes no ``usage.json``; a malformed
+later record belongs to another turn and is not consumed. The Claude transcript
+reader remains best-effort.
 
 The implementer
    The 5-hour and weekly ``used_percent`` before and after the turn (a
