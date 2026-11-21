@@ -111,10 +111,13 @@ exact-exception prompts select
 ``schemas/implementation-result-v1.json`` from the pinned copy; review and
 orientation prompts select ``schemas/review-result-v1.json`` there.
 
-Every brief ends with the exact contents of ``templates/a2i-block.md``. Do not
-paraphrase that block: it makes assumptions, interpretations, deviations and
-brief defects part of the result contract. Project-specific facts belong in a
-materialized prompt, never in the reusable template.
+Every brief ends with the exact contents of ``templates/compaction-block.md``
+followed immediately by ``templates/a2i-block.md``. Do not paraphrase either
+block: the first makes one in-turn compaction recoverable through a mandatory
+re-read and revalidation protocol, and the second makes assumptions,
+interpretations, deviations and brief defects part of the result contract.
+Project-specific facts belong in a materialized prompt, never in the reusable
+template.
 
 *****************
 Before the turn

@@ -25,6 +25,8 @@ findings and stop with `needs_user` on a blocker.
 `orientation`. Name `<project>`, `<base>` and the next work item in the
 report.
 
+**Compaction (`COMPACTION/D1`, permanent).** If your context is compacted during this turn: stop at the next safe boundary (never between writing a RED and confirming its failure, and never inside a commit); re-read this brief, the repository rules, the result schema, every governing contract named here, and the current evidence. In an implementation turn, also re-read the full diff from the base, `git status`, `git log --oneline BASE..HEAD`, and the RED predicates, and rerun the focused tests and full validation before any further commit. Then finish the turn and renew the chat before another turn. A second compaction in the turn, or any gap the re-read cannot close, means stop: `blocked` in an implementation turn, `needs_user` in a review turn, naming it. In `report`, include a **Compactions** heading: `none`, or for each compaction what you were doing, what you re-read and what you re-ran.
+
 **Interpretation transparency (`A2I/D2`, permanent; adapted from the user's a2i rules 42, 58 and 59).** Only where relevant; short entries; "none" is a valid answer.
 - End `report` with three headed lists:
   - **Assumptions:** what you assumed because the brief or the files were missing, ambiguous or underspecified.

@@ -189,8 +189,9 @@ decisions remain with the downstream project.
      - superseded
      - Never; A2I/D2 replaced it.
    * - A2I/D2
-     - Every brief carries the unchanged interpretation-transparency block;
-       schema enforcement waits for evidence that prompt enforcement missed.
+     - Every brief carries the unchanged interpretation-transparency block
+       beside the required compaction block; schema enforcement waits for
+       evidence that prompt enforcement missed.
      - active
      - A miss occurs that a schema change would have caught.
    * - COLD/D1
