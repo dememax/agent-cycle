@@ -761,6 +761,49 @@ def test_result_validates_nested_enum_and_additional_properties(
     assert (output / "result.json").exists()
 
 
+def test_schema_error_order_does_not_depend_on_hash_seed(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """Set-derived validation errors have one stable audit representation."""
+    schema = tmp_path / "additional-properties-schema.json"
+    schema.write_text(
+        json.dumps(
+            {
+                "type": "object",
+                "properties": {"status": {"enum": ["ok"]}},
+                "additionalProperties": False,
+            }
+        ),
+        encoding="utf-8",
+    )
+    final = json.dumps(
+        {
+            "status": "ok",
+            "generated_alpha": 1,
+            "generated_bravo": 2,
+            "generated_charlie": 3,
+            "generated_delta": 4,
+            "generated_echo": 5,
+            "generated_foxtrot": 6,
+        }
+    )
+    result_lines = []
+    for seed in ("1", "2"):
+        code, stdout, stderr, _output = run_audit(
+            isolated_env,
+            tmp_path,
+            completed_log(final=final),
+            extra_env={"PYTHONHASHSEED": seed},
+            name=f"hash-seed-{seed}",
+            schema_path=schema,
+        )
+        assert code == 2, stderr
+        result_lines.append(next(line for line in stdout.splitlines() if line.startswith("result:")))
+
+    assert result_lines[0] == result_lines[1]
+
+
 def test_result_refuses_an_unsupported_schema_keyword(
     isolated_env: IsolatedEnvironment,
     tmp_path: Path,
