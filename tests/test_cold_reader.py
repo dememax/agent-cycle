@@ -158,10 +158,8 @@ def test_cold_reader_contract_has_not_drifted() -> None:
             missing.append(TEMPLATE_SCHEMAS[name])
         if missing:
             failures.append(f"templates/{name} lacks markers: {', '.join(missing)}")
-        if a2i and compaction and not path.read_bytes().endswith(compaction + a2i):
-            failures.append(
-                f"templates/{name} does not end with the byte-identical compaction and A2I blocks"
-            )
+        if a2i and compaction and not path.read_bytes().endswith(compaction + b"\n" + a2i):
+            failures.append(f"templates/{name} does not end with the byte-identical compaction and A2I blocks")
 
     public_paths = list((ROOT / "docs").glob("*.rst"))
     public_paths.extend((ROOT / "templates").glob("*.md") if (ROOT / "templates").is_dir() else ())
