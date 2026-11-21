@@ -169,6 +169,11 @@ def test_reports_codex_and_deduplicated_claude_cycles(
     )
 
     assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[0] == (
+        "| turn | Codex 5h % (account-wide) | Codex week % (account-wide) | "
+        "Codex tokens in / cached / out | Codex median context/call | "
+        "Claude tokens in+cache-write / cache-read / out (msgs) | Claude median context/msg |"
+    )
     table_row = "| turn-001 | 80 → 20 (window reset) | 30 → 35 | 450 / 150 / 150 | 200 | 59 / 13 / 17 (2) | 42 |"
     assert result.stdout.splitlines()[2] == table_row
     first = json.loads((turn_one / "usage.json").read_text(encoding="utf-8"))
