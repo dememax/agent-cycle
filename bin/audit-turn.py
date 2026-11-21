@@ -546,7 +546,11 @@ try:
             for cmd, workdir in escalations:
                 ok = escalation_allowed(cmd, workdir)
                 shown = display_command(cmd)
-                print(f"{e.get('timestamp', '')[11:19]} ESCALATION {'ok ' if ok else 'BAD'} [{workdir}] {shown[:180]}")
+                shown_workdir = display_command(workdir)
+                print(
+                    f"{e.get('timestamp', '')[11:19]} ESCALATION "
+                    f"{'ok ' if ok else 'BAD'} [{shown_workdir}] {shown[:180]}"
+                )
                 if not ok:
                     esc_bad.append(cmd)
         if p.get("type") == "task_complete":
@@ -574,7 +578,9 @@ print("approvals_reviewer:", reviewer)
 if turn_error:
     # A turn that ended on an error (usage limit, auth, ...) is an incident in
     # its own right, reported before the result check (exit 4).
-    print(f"TURN ERROR: {turn_error[0]}: {turn_error[1][:200]}")
+    shown_kind = display_command(str(turn_error[0]))
+    shown_message = display_command(str(turn_error[1])[:200])
+    print(f"TURN ERROR: {shown_kind}: {shown_message}")
 final = msgs[-1] if msgs else ""
 with open(f"{out}/final-reply.md", "w", encoding="utf-8") as reply_file:
     reply_file.write(final)

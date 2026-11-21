@@ -207,9 +207,10 @@ After the turn
    record generator accepts the normal audit grammar or the early log-error
    grammar (established escalation lines, one ``LOG ERROR: DETAIL`` line and
    the saved exit), and preserves the error and status in the factual record.
-   Commands are tokenized as shell syntax; other operators, redirections and
-   expansions are flagged, and ``git commit --amend`` needs the turn's exact
-   authorization.
+   Displayed commands, working directories and turn errors escape control and
+   Unicode line separators, so each fact occupies one output line. Commands
+   are tokenized as shell syntax; other operators, redirections and expansions
+   are flagged, and ``git commit --amend`` needs the turn's exact authorization.
 3. Require ``bin/github-snapshot.sh`` to exit zero, then compare
    ``snapshot-after.txt`` with ``snapshot-before.txt``. Only the project's
    HEAD and status may have changed. The extension's ``refs/codex/`` turn

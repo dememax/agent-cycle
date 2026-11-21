@@ -459,10 +459,7 @@ def test_turn_error_display_escapes_control_characters(
     )
 
     assert code == 4
-    assert (
-        f"TURN ERROR: generated-kind{escaped}forged-kind: "
-        f"generated-message{escaped}forged-message"
-    ) in stdout
+    assert (f"TURN ERROR: generated-kind{escaped}forged-kind: generated-message{escaped}forged-message") in stdout
     assert len(stdout.splitlines()) == 3
 
 
