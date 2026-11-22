@@ -56,11 +56,10 @@ keep its deny-list outside this public repository.
 The person chooses which agent drives and which implements. They also choose
 the model, reasoning effort and other supported chat settings for each project
 and record those values in the bootstrap record. They are not repository-wide
-defaults. In the
-implementer's visible-chat panel, select ``Approve for me``: commits require
-approval because ``.git`` is read-only inside the workspace, while the prompt,
-audit and snapshots provide the scope checks. Automatic approval itself is
-not a scope boundary.
+defaults. In the implementer's visible-chat panel, select ``Approve for me``:
+commits require approval because ``.git`` is read-only inside the workspace,
+while the prompt, audit and snapshots provide the scope checks. Automatic
+approval itself is not a scope boundary.
 
 =========================
 First profile and state
