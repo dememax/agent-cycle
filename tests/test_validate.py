@@ -397,6 +397,58 @@ def test_rst_files_placeholder_uses_current_non_deleted_paths(
     assert set(selected) == {"added.rst", "modified.rst", "renamed.rst", "typed.rst"}
 
 
+def test_rst_files_placeholder_disambiguates_option_like_path(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """An RST path beginning with a dash reaches the checker as a path."""
+    initialized = isolated_env.run(["git", "-C", isolated_env.repo, "init", "-q"])
+    assert initialized.returncode == 0, initialized.stderr
+    notes = isolated_env.repo / "notes.txt"
+    notes.write_text("generated base\n", encoding="utf-8")
+    added = isolated_env.run(["git", "-C", isolated_env.repo, "add", "notes.txt"])
+    assert added.returncode == 0, added.stderr
+    for message in ("generated base", "generated option-like path"):
+        if message != "generated base":
+            (isolated_env.repo / "-generated.rst").write_text("generated\n", encoding="utf-8")
+            added = isolated_env.run(["git", "-C", isolated_env.repo, "add", "--", "-generated.rst"])
+            assert added.returncode == 0, added.stderr
+        committed = isolated_env.run(
+            [
+                "git",
+                "-C",
+                isolated_env.repo,
+                "-c",
+                "user.name=Generated",
+                "-c",
+                "user.email=generated",
+                "commit",
+                "-q",
+                "-m",
+                message,
+            ]
+        )
+        assert committed.returncode == 0, committed.stderr
+    write_validation_profile(
+        isolated_env,
+        [
+            {
+                "name": "check_rst stand-in",
+                "arguments": command("import json, sys; print(json.dumps(sys.argv[1:]))", "{rst_files}"),
+                "always_show": True,
+            }
+        ],
+    )
+    output = tmp_path / "validation"
+
+    result = run_validate(isolated_env, "--base", "HEAD^", "--out", output)
+
+    assert result.returncode == 0, result.stderr
+    assert json.loads((output / "01-check-rst-stand-in.stdout").read_text(encoding="utf-8")) == [
+        "./-generated.rst"
+    ]
+
+
 def test_rst_files_placeholder_skips_an_empty_committed_range(
     isolated_env: IsolatedEnvironment,
     tmp_path: Path,
