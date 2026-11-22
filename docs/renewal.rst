@@ -94,10 +94,12 @@ First chats and records
 
 Choose a fixed sentinel that names the project and tells the implementer to
 wait. The person opens a new visible chat on the project's repository with the
-recorded settings, sends the sentinel once and does not type in the chat while
-a queued turn runs. Identify it with ``bin/codex-identify-thread.py`` using the
-sentinel, a time with an explicit offset and the prior log when one exists.
-Exactly one readable candidate and no unreadable look-alike are required.
+recorded settings and sends the sentinel once. Never send a message or start a
+turn in the chat while a turn is queued or running; local service commands are
+fine (for example ``/status``). Identify it with
+``bin/codex-identify-thread.py`` using the sentinel, a time with an explicit
+offset and the prior log when one exists. Exactly one readable candidate and
+no unreadable look-alike are required.
 The optional ``--write`` and ``--accept-cli-version VERSION`` arguments may
 appear before, between or after those three operands; any malformed command
 line is refused before the profile, logs or state are read or written.
