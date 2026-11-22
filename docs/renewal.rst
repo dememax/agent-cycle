@@ -187,12 +187,11 @@ A new implementer chat
    repository, with the same settings as the old one, and sends one fixed
    sentinel message that asks the implementer to wait.
 2. The driver identifies it, fail-closed, with
-   ``bin/codex-identify-thread.py [--write] [--accept-cli-version VERSION]
-   SENTINEL SINCE OLD_LOG``; the options may appear anywhere among the three
-   operands. A candidate is
-   a log that parses completely, comes from the VS Code extension, has the
-   project's working directory, was created after ``SINCE``, and whose
-   first message is the sentinel, in a completed turn. Exactly one
+   ``bin/codex-identify-thread.py [--accept-cli-version VERSION] [--write]
+   SENTINEL SINCE OLD_LOG``. The options may appear anywhere among the three
+   operands. A candidate is a log that parses completely, comes from the VS Code
+   extension, has the project's working directory, was created after ``SINCE``,
+   and whose first message is the sentinel, in a completed turn. Exactly one
    candidate and no unreadable look-alike are required.
 3. It compares the settings with the old chat's on the eleven stopping
    keys. The new chat's effective profile uses its initial ``turn_context``
