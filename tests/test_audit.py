@@ -108,6 +108,35 @@ def completed_log(*records: dict[str, object], final: str = VALID_RESULT) -> lis
     return [*records, assistant_message(final), task_complete("turn-audit")]
 
 
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        pytest.param((), id="missing-operands"),
+        pytest.param(
+            ("generated-log", "not-an-integer", "generated-schema", "generated-output"),
+            id="start-line",
+        ),
+    ],
+)
+def test_command_line_errors_are_one_line_usage_failures(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    arguments: tuple[str, ...],
+) -> None:
+    """Missing operands and a non-integer START_LINE never raise a traceback."""
+    resolved = tuple(
+        str(tmp_path / argument) if argument.startswith("generated-") else argument for argument in arguments
+    )
+
+    result = isolated_env.run([PYTHON, "-I", AUDIT, *resolved])
+
+    assert result.returncode == 16
+    assert result.stdout == ""
+    assert result.stderr.startswith("audit-turn: usage error:")
+    assert result.stderr.count("\n") == 1
+    assert not (tmp_path / "generated-output").exists()
+
+
 def implementation_result(*, red: object = None) -> dict[str, object]:
     """Build a generated result in the implementation contract's shape."""
     return {
