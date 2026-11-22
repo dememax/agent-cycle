@@ -621,10 +621,11 @@ def test_accept_cli_version_requires_value(isolated_env: IsolatedEnvironment, tm
         valid_records(thread_id="thread-new", cwd=isolated_env.repo, cli_version=NEW_CLI_VERSION),
     )
 
-    code, stdout, _stderr = run_identifier(isolated_env, SENTINEL, SINCE, old_log, "--accept-cli-version")
+    code, stdout, stderr = run_identifier(isolated_env, SENTINEL, SINCE, old_log, "--accept-cli-version")
 
     assert code == 2
-    assert "--accept-cli-version requires VERSION" in stdout
+    assert stdout == ""
+    assert "--accept-cli-version requires VERSION" in stderr
     assert not (isolated_env.state / "active-codex-thread.json").exists()
 
 

@@ -27,7 +27,7 @@ RETIRED_VARIABLES = ("AGENT_CYCLE_REPO", "AGENT_CYCLE_STATE", "S0_STATE_DIR")
 def tool_command(tool: str, tmp_path: Path) -> list[str | Path]:
     """Return a no-write invocation that reaches profile loading first."""
     if tool == "identifier":
-        return [PYTHON, "-I", IDENTIFIER]
+        return [PYTHON, "-I", IDENTIFIER, "generated sentinel", SINCE, tmp_path / "absent-log"]
     if tool == "queue":
         return [QUEUE, tmp_path / "absent-turn"]
     return [PYTHON, "-I", AUDIT, tmp_path / "absent-log", "0", tmp_path / "absent-schema", tmp_path / "output"]

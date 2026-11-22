@@ -4,8 +4,10 @@
 # Fail-closed identification of a new visible Codex thread — agent-cycle project
 """Identify a new visible Codex thread, fail-closed, and record it as active.
 
-Usage: codex-identify-thread.py SENTINEL SINCE_ISO OLD_THREAD_LOG
-       [--accept-cli-version VERSION] [--write]
+Usage: codex-identify-thread.py [--accept-cli-version VERSION] [--write]
+       SENTINEL SINCE_ISO OLD_THREAD_LOG
+
+The two options may appear anywhere among the three positional operands.
 
 SINCE_ISO must carry a time-zone offset (for example 2026-10-25T11:40:00+01:00).
 
@@ -41,6 +43,49 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import codexlog
 
+USAGE = (
+    "codex-identify-thread: usage error: {detail}; usage: codex-identify-thread.py "
+    "[--accept-cli-version VERSION] [--write] SENTINEL SINCE_ISO OLD_THREAD_LOG"
+)
+
+
+def parse_arguments(arguments: list[str]) -> tuple[str, datetime, Path, bool, str | None]:
+    """Parse exactly three operands and the two options, without reading state."""
+    operands: list[str] = []
+    write = False
+    accept_cli_version = None
+    index = 0
+    while index < len(arguments):
+        argument = arguments[index]
+        if argument == "--write":
+            if write:
+                raise ValueError("--write specified more than once")
+            write = True
+        elif argument == "--accept-cli-version":
+            if accept_cli_version is not None:
+                raise ValueError("--accept-cli-version specified more than once")
+            if index + 1 >= len(arguments) or arguments[index + 1].startswith("--"):
+                raise ValueError("--accept-cli-version requires VERSION")
+            accept_cli_version = arguments[index + 1]
+            if not accept_cli_version:
+                raise ValueError("--accept-cli-version requires a non-empty VERSION")
+            index += 1
+        elif argument.startswith("--"):
+            raise ValueError(f"unknown option {argument!r}")
+        else:
+            operands.append(argument)
+        index += 1
+    if len(operands) != 3:
+        raise ValueError(f"expected 3 positional operands, got {len(operands)}")
+    sentinel, since_iso, old_log = operands
+    try:
+        since = datetime.fromisoformat(since_iso)
+    except ValueError:
+        raise ValueError(f"SINCE_ISO is not a valid ISO date and time: {since_iso!r}") from None
+    if since.tzinfo is None:
+        raise ValueError("SINCE_ISO needs a time-zone offset")
+    return sentinel, since, Path(old_log), write, accept_cli_version
+
 
 def relocate(value: object, old_root: str, new_root: str) -> object:
     """VALUE with each string that is OLD_ROOT, or a path under it, moved to NEW_ROOT."""
@@ -57,29 +102,17 @@ def relocate(value: object, old_root: str, new_root: str) -> object:
 
 def main() -> int:
     try:
+        sentinel, since, old_log, write, accept_cli_version = parse_arguments(sys.argv[1:])
+    except ValueError as error:
+        print(USAGE.format(detail=error), file=sys.stderr)
+        return 2
+    try:
         profile = codexlog.load_project_profile()
     except codexlog.ProfileError as error:
         print(f"codex-identify-thread: configuration error: {error}", file=sys.stderr)
         return 2
     repository = str(profile.repository)
     active = profile.state / "active-codex-thread.json"
-    if len(sys.argv) < 4:
-        print(__doc__)
-        return 2
-    sentinel, since_iso, old_log = sys.argv[1], sys.argv[2], Path(sys.argv[3])
-    options = sys.argv[4:]
-    write = "--write" in options
-    accept_cli_version = None
-    if "--accept-cli-version" in options:
-        accept_index = options.index("--accept-cli-version")
-        if accept_index + 1 == len(options) or options[accept_index + 1].startswith("--"):
-            print("FAIL: --accept-cli-version requires VERSION")
-            return 2
-        accept_cli_version = options[accept_index + 1]
-    since = datetime.fromisoformat(since_iso)
-    if since.tzinfo is None:
-        print("FAIL: SINCE_ISO needs a time-zone offset")
-        return 2
     candidates = []
     damaged = []
     for path in sorted((Path.home() / ".codex/sessions").rglob("rollout-*.jsonl")):

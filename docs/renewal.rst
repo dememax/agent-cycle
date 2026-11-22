@@ -99,6 +99,9 @@ recorded settings, sends the sentinel once and does not type in the chat while
 a queued turn runs. Identify it with ``bin/codex-identify-thread.py`` using the
 sentinel, a time with an explicit offset and the prior log when one exists.
 Exactly one readable candidate and no unreadable look-alike are required.
+The optional ``--write`` and ``--accept-cli-version VERSION`` arguments may
+appear before, between or after those three operands; any malformed command
+line is refused before the profile, logs or state are read or written.
 
 If renewal crosses a Codex CLI version, first review the new generated-log
 shape. Then pass ``--accept-cli-version VERSION`` naming the new chat's exact
@@ -183,7 +186,9 @@ A new implementer chat
    repository, with the same settings as the old one, and sends one fixed
    sentinel message that asks the implementer to wait.
 2. The driver identifies it, fail-closed, with
-   ``bin/codex-identify-thread.py SENTINEL SINCE OLD_LOG``. A candidate is
+   ``bin/codex-identify-thread.py [--write] [--accept-cli-version VERSION]
+   SENTINEL SINCE OLD_LOG``; the options may appear anywhere among the three
+   operands. A candidate is
    a log that parses completely, comes from the VS Code extension, has the
    project's working directory, was created after ``SINCE``, and whose
    first message is the sentinel, in a completed turn. Exactly one
