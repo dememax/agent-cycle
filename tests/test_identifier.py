@@ -81,15 +81,77 @@ def run_identifier(
 
 
 def test_argument_errors(isolated_env: IsolatedEnvironment, tmp_path: Path) -> None:
-    """Missing arguments and a naive SINCE value are usage errors."""
-    code, stdout, _stderr = run_identifier(isolated_env)
+    """Missing arguments and a naive SINCE value are one-line usage errors."""
+    code, stdout, stderr = run_identifier(isolated_env)
     assert code == 2
-    assert "Usage: codex-identify-thread.py" in stdout
+    assert stdout == ""
+    assert stderr.startswith("codex-identify-thread: usage error:")
+    assert stderr.count("\n") == 1
 
     old_log = make_old_log(tmp_path, isolated_env.repo)
-    code, stdout, _stderr = run_identifier(isolated_env, SENTINEL, "2039-01-01T00:00:00", old_log)
+    code, stdout, stderr = run_identifier(isolated_env, SENTINEL, "2039-01-01T00:00:00", old_log)
     assert code == 2
-    assert "SINCE_ISO needs a time-zone offset" in stdout
+    assert stdout == ""
+    assert "SINCE_ISO needs a time-zone offset" in stderr
+    assert stderr.count("\n") == 1
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        pytest.param((SENTINEL, "not-a-time", "old", "--write"), id="invalid-since"),
+        pytest.param((SENTINEL, SINCE, "old", "--wirte"), id="unknown-option"),
+        pytest.param((SENTINEL, SINCE, "old", "extra"), id="extra-operand"),
+        pytest.param((SENTINEL, SINCE, "old", "--write", "--write"), id="duplicate-write"),
+        pytest.param(
+            (SENTINEL, SINCE, "old", "--accept-cli-version"),
+            id="missing-accepted-version",
+        ),
+    ],
+)
+def test_malformed_command_line_is_refused_before_discovery(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+    arguments: tuple[str, ...],
+) -> None:
+    """Every malformed command line stops before rollout discovery or writing."""
+    old_log = make_old_log(tmp_path, isolated_env.repo)
+    resolved = tuple(str(old_log) if argument == "old" else argument for argument in arguments)
+    write_records(candidate_path(isolated_env), valid_records(thread_id="thread-new", cwd=isolated_env.repo))
+
+    code, stdout, stderr = run_identifier(isolated_env, *resolved)
+
+    assert code == 2
+    assert stdout == ""
+    assert stderr.startswith("codex-identify-thread: usage error:")
+    assert stderr.count("\n") == 1
+    assert not (isolated_env.state / "active-codex-thread.json").exists()
+
+
+def test_options_are_accepted_before_operands(
+    isolated_env: IsolatedEnvironment,
+    tmp_path: Path,
+) -> None:
+    """Both options retain their meaning when they precede the operands."""
+    old_log = make_old_log(tmp_path, isolated_env.repo)
+    write_records(
+        candidate_path(isolated_env),
+        valid_records(thread_id="thread-new", cwd=isolated_env.repo, cli_version=NEW_CLI_VERSION),
+    )
+
+    code, stdout, stderr = run_identifier(
+        isolated_env,
+        "--write",
+        "--accept-cli-version",
+        NEW_CLI_VERSION,
+        SENTINEL,
+        SINCE,
+        old_log,
+    )
+
+    assert code == 0, stderr
+    assert f"accepted CLI version change: {CLI_VERSION} -> {NEW_CLI_VERSION}" in stdout
+    assert (isolated_env.state / "active-codex-thread.json").exists()
 
 
 def test_exactly_one_candidate_prints_summary(isolated_env: IsolatedEnvironment, tmp_path: Path) -> None:
