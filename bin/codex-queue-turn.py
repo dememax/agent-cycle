@@ -30,7 +30,7 @@ visibly started the new turn, so two drivers cannot both queue. Refuses
   never started);
 - the latest turn_context equals the recorded profile_baseline on every
   current stopping key. A setting changed in the panel after the last turn
-  cannot be seen until a turn records it; the post-turn audit rechecks it;
+  cannot be seen until a turn records it; the following queue check sees it;
 - TURN_DIR/prompt.md starts with "[S0 DRIVER: Claude Code]".
 
 Before submitting it writes pending.json atomically and fsyncs it and its
