@@ -192,6 +192,9 @@ After the turn
 1. Wait until the log shows the turn's ``task_complete``. Watch for
    the usage limits while waiting.
 2. Audit: ``bin/audit-turn.py THREAD_LOG START_LINE SCHEMA TURN_DIR``.
+   A missing operand or non-integer ``START_LINE`` is a one-line usage error
+   with status 16. A selected project-profile configuration error retains
+   status 2; neither case is part of the audit bit set below.
    For every top-level ``compacted`` record after ``START_LINE`` and through
    this turn's ``task_complete``, it prints ``COMPACTION at line N
    (HH:MM:SS)``. A compaction does not change the exit status. The status is a

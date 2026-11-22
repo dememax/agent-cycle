@@ -16,9 +16,10 @@ Reads the rollout log from START_LINE, and:
   if the complete message parses as one strict JSON object, to
   OUT_DIR/result.json, then validates it recursively against the supported
   subset of the selected schema.
-Exit status (bit flags): 1 escalation outside the allowlist, 2 result
-invalid, 4 the turn ended on an error (e.g. usage_limit_exceeded), 8 log
-error; 0 clean.
+Malformed operands are a one-line usage error with status 16. A selected
+project-profile configuration error has the established status 2. Otherwise,
+exit status is a bit set: 1 escalation outside the allowlist, 2 result invalid,
+4 the turn ended on an error (e.g. usage_limit_exceeded), 8 log error; 0 clean.
 
 Custom-tool source is inspected only when its raw text contains
 ``sandbox_permissions`` or ``require_escalated``. This matches the tool-call
@@ -37,13 +38,23 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import codexlog
 import result_schema
 
+USAGE = "audit-turn: usage error: {detail}; usage: audit-turn.py THREAD_LOG START_LINE SCHEMA OUT_DIR"
+
 try:
     PROFILE = codexlog.load_project_profile()
 except codexlog.ProfileError as error:
     print(f"audit-turn: configuration error: {error}", file=sys.stderr)
     sys.exit(2)
 
-log, start, schema_path, out = sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4]
+if len(sys.argv) != 5:
+    print(USAGE.format(detail=f"expected 4 operands, got {len(sys.argv) - 1}"), file=sys.stderr)
+    sys.exit(16)
+log, start_text, schema_path, out = sys.argv[1:]
+try:
+    start = int(start_text)
+except ValueError:
+    print(USAGE.format(detail=f"START_LINE is not an integer: {start_text!r}"), file=sys.stderr)
+    sys.exit(16)
 REPO = str(PROFILE.repository)
 # A per-turn extension, decided by the user for one turn only, passed as a
 # regular expression in AUDIT_EXTRA_ALLOW (e.g. the prescribed release tag).
