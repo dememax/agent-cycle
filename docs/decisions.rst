@@ -194,6 +194,19 @@ decisions remain with the downstream project.
        evidence that prompt enforcement missed.
      - active
      - A miss occurs that a schema change would have caught.
+   * - COMPACTION/D1
+     - One compaction in a turn is recoverable at the next safe boundary,
+       never between writing and confirming a RED or inside a commit. Re-read
+       the brief, repository rules, schema, named contracts and current
+       evidence; for implementation, also re-read the base diff, status, log
+       and RED predicates and re-run focused tests and full validation before
+       any further commit. Finish that turn, then renew the chat before
+       another. A second compaction, or a gap the re-read cannot close, stops
+       the turn as ``blocked`` for implementation or ``needs_user`` for
+       review.
+     - active
+     - The context mechanism removes compaction, or operating evidence shows
+       that the recovery protocol is insufficient.
    * - COLD/D1
      - The interrupted cold-reader review resumed with exact read paths and
        produced the seven-point implementation scope.
