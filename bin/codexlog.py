@@ -360,35 +360,44 @@ def _effective_profile(
     return values, sources
 
 
-def latest_effective_profile(recs: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, str]]:
-    """The latest turn context, completed from the latest settings event anywhere."""
+def _profile_inputs(
+    recs: list[dict[str, Any]],
+    *,
+    initial: bool,
+) -> tuple[dict[str, Any], dict[str, Any] | None]:
+    """Select one context and the settings events allowed to complete it."""
     contexts = turn_contexts(recs)
     if not contexts:
         raise LogError("missing turn_context")
+    if initial:
+        turn, _text = initial_composer(recs)
+        state = turn_states(recs)[turn]
+        start, complete = state["started"], state["complete"]
+        if start is None or complete is None:
+            raise LogError("the initial composer turn is not complete")
+        context = contexts[0]
+        indexes = range(start + 1, complete)
+    else:
+        context = contexts[-1]
+        indexes = range(len(recs))
     settings = None
-    for index, record in enumerate(recs):
-        candidate = _thread_settings(record, index)
+    for index in indexes:
+        candidate = _thread_settings(recs[index], index)
         if candidate is not None:
             settings = candidate
-    return _effective_profile(contexts[-1], settings)
+    return context, settings
+
+
+def latest_effective_profile(recs: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, str]]:
+    """The latest turn context, completed from the latest settings event anywhere."""
+    context, settings = _profile_inputs(recs, initial=False)
+    return _effective_profile(context, settings)
 
 
 def initial_effective_profile(recs: list[dict[str, Any]]) -> tuple[dict[str, Any], dict[str, str]]:
     """The first context, completed only by settings inside its initial turn."""
-    contexts = turn_contexts(recs)
-    if not contexts:
-        raise LogError("missing turn_context")
-    turn, _text = initial_composer(recs)
-    state = turn_states(recs)[turn]
-    start, complete = state["started"], state["complete"]
-    if start is None or complete is None:
-        raise LogError("the initial composer turn is not complete")
-    settings = None
-    for index in range(start + 1, complete):
-        candidate = _thread_settings(recs[index], index)
-        if candidate is not None:
-            settings = candidate
-    return _effective_profile(contexts[0], settings)
+    context, settings = _profile_inputs(recs, initial=True)
+    return _effective_profile(context, settings)
 
 
 def _legacy_profile_keys(context: dict[str, Any], settings: dict[str, Any] | None) -> set[str]:
@@ -403,33 +412,14 @@ def _legacy_profile_keys(context: dict[str, Any], settings: dict[str, Any] | Non
 
 def latest_legacy_profile_keys(recs: list[dict[str, Any]]) -> set[str]:
     """Obsolete keys supplied to the latest context by the latest settings event."""
-    contexts = turn_contexts(recs)
-    if not contexts:
-        raise LogError("missing turn_context")
-    settings = None
-    for index, record in enumerate(recs):
-        candidate = _thread_settings(record, index)
-        if candidate is not None:
-            settings = candidate
-    return _legacy_profile_keys(contexts[-1], settings)
+    context, settings = _profile_inputs(recs, initial=False)
+    return _legacy_profile_keys(context, settings)
 
 
 def initial_legacy_profile_keys(recs: list[dict[str, Any]]) -> set[str]:
     """Obsolete keys supplied to the first context inside its initial turn."""
-    contexts = turn_contexts(recs)
-    if not contexts:
-        raise LogError("missing turn_context")
-    turn, _text = initial_composer(recs)
-    state = turn_states(recs)[turn]
-    start, complete = state["started"], state["complete"]
-    if start is None or complete is None:
-        raise LogError("the initial composer turn is not complete")
-    settings = None
-    for index in range(start + 1, complete):
-        candidate = _thread_settings(recs[index], index)
-        if candidate is not None:
-            settings = candidate
-    return _legacy_profile_keys(contexts[0], settings)
+    context, settings = _profile_inputs(recs, initial=True)
+    return _legacy_profile_keys(context, settings)
 
 
 def profile_baseline(value: object) -> dict[str, Any]:
