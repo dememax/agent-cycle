@@ -23,12 +23,11 @@ It compares the candidate's first effective profile with the old thread's
 latest effective profile on codexlog.STOPPING_KEYS, and prints DIAGNOSTIC_KEYS.
 It also records the candidate's session_meta cli_version and reports both
 threads' versions. A change fails unless --accept-cli-version names the
-candidate's version exactly. When the old thread belongs to another repository
-(the first chat of a project), its
-settings are compared relocated: every string that is the old repository's
-path, or a path under it, is moved to the selected repository first. With --write and
-no stopping difference, it writes active-codex-thread.json in the project's
-state directory.
+candidate's version exactly. When the old thread belongs to another
+repository (the first chat of a project), its settings are compared relocated:
+every string that is the old repository's path, or a path under it, is moved to
+the selected repository first. With --write and no stopping difference, it
+writes active-codex-thread.json in the project's state directory.
 
 The project is selected by the required AGENT_CYCLE_PROFILE file (codexlog).
 """
