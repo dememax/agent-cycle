@@ -19,6 +19,16 @@ They do not imply that its guards are a security boundary.
       The environment variable whose value selects the one explicit project
       profile used by stateful cycle tools.
 
+   active-thread record
+      The project's record of its one active implementer chat, stored as
+      ``active-codex-thread.json`` in the run state with the chat's sentinel
+      and profile baseline.
+
+   brief
+      The complete prompt for one bounded turn. It records the work item,
+      authority, evidence, validation, stop conditions and selected final-
+      message contract.
+
    cold bootstrap
       Reconstruction of the working procedure from versioned repository files
       and project-owned records, without relying on an earlier agent
@@ -27,6 +37,14 @@ They do not imply that its guards are a security boundary.
    cold-reader-manifest.toml
       The versioned map from each complete cold-reader scenario step to its
       authoritative files.
+
+   compaction
+      An automatic reduction of the chat context. The recovery and stopping
+      rule is ``COMPACTION/D1`` in the :doc:`decisions`.
+
+   decision ledger
+      The operational table in :doc:`decisions` that records the outcomes
+      needed to understand the current procedure and their status.
 
    driver
       The agent that prepares and queues a turn, audits its execution and
@@ -42,6 +60,12 @@ They do not imply that its guards are a security boundary.
       content from one recorded commit. It is the driver's executable and
       contract source for a turn.
 
+   profile baseline
+      The active-thread record's stored values for every stopping key,
+      including the working directory, approvals, sandbox, permissions,
+      model, effort and collaboration mode. Queueing compares the latest
+      effective profile with this baseline.
+
    public-content gate
       The pre-push check that refuses configured protected patterns in content
       and metadata. It supplements review; it is not a sandbox and cannot
@@ -55,6 +79,11 @@ They do not imply that its guards are a security boundary.
    run state
       Project-specific active-chat, turn and evidence data stored outside this
       public repository under the person's selected state directory.
+
+   sentinel
+      The fixed first message that identifies an implementer chat. The
+      active-thread record preserves it, and the queue requires the chat's
+      initial completed turn to contain the same message.
 
    schemas/implementation-result-v1.json
       The versioned final-message contract for implementation and exact-
