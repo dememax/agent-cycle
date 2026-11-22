@@ -223,8 +223,10 @@ change type in `REV..HEAD` is added, copied, modified, renamed or type-changed.
 For a rename, only the current path is passed; deleted paths are omitted. If
 the range has no such path, the step is recorded as skipped and is not run, so
 the command cannot fall back to inspecting uncommitted files. The placeholder
-must occur exactly once as a complete argument. This addition does not change
-the version-2 profile grammar; profiles that do not use it behave as before.
+must occur exactly once as a complete argument. A selected path beginning with
+`-` gets a `./` prefix so commands treat it as a file operand. This addition
+does not change the version-2 profile grammar; profiles that do not use it
+behave as before.
 
 The `repository` and `state` values must be absolute or start with `~/`; the latter form is
 expanded against `HOME`. Their spelling is canonical: no empty, `.` or `..`

@@ -444,9 +444,7 @@ def test_rst_files_placeholder_disambiguates_option_like_path(
     result = run_validate(isolated_env, "--base", "HEAD^", "--out", output)
 
     assert result.returncode == 0, result.stderr
-    assert json.loads((output / "01-check-rst-stand-in.stdout").read_text(encoding="utf-8")) == [
-        "./-generated.rst"
-    ]
+    assert json.loads((output / "01-check-rst-stand-in.stdout").read_text(encoding="utf-8")) == ["./-generated.rst"]
 
 
 def test_rst_files_placeholder_skips_an_empty_committed_range(

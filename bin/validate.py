@@ -152,7 +152,7 @@ def expand_arguments(step: ValidationStep, repository: Path, base: str | None) -
     expanded: list[str] = []
     for argument in step.arguments:
         if argument == "{rst_files}":
-            expanded.extend(rst_files)
+            expanded.extend(f"./{path}" if path.startswith("-") else path for path in rst_files)
             continue
         value = argument.replace("{base}", base or "")
         if value.startswith("~/"):
